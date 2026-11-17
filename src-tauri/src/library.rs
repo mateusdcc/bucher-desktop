@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     fs,
     io::{self, Write},
@@ -49,6 +49,25 @@ pub struct Entry {
 pub struct ImportReport {
     pub imported: Vec<String>,
     pub skipped: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct BookDraft {
+    pub title: String,
+    #[serde(flatten)]
+    pub content: BookContent,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct BookContent {
+    introduction: String,
+    chapters: Vec<ChapterDraft>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct ChapterDraft {
+    title: String,
+    markdown: String,
 }
 
 fn invalid(message: impl Into<String>) -> io::Error {
@@ -255,6 +274,85 @@ pub fn import(root: &Path, source: &Path) -> io::Result<ImportReport> {
     Ok(report)
 }
 
+pub fn validate_draft(draft: &BookDraft) -> io::Result<()> {
+    let title = &draft.title;
+    let stem = title
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_uppercase();
+    let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || stem
+            .strip_prefix("COM")
+            .or_else(|| stem.strip_prefix("LPT"))
+            .is_some_and(|number| {
+                matches!(number, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+            });
+    if title.is_empty()
+        || title.trim() != title
+        || title.starts_with('.')
+        || title.ends_with('.')
+        || title.contains([
+            '\\', '/', ':', '*', '?', '"', '<', '>', '|', '#', '^', '[', ']',
+        ])
+        || title.chars().any(char::is_control)
+        || reserved
+    {
+        return Err(invalid(
+            "Enter a book title that can be used as a library folder name.",
+        ));
+    }
+    if draft.content.chapters.is_empty() {
+        return Err(invalid("A book draft must have at least one chapter."));
+    }
+    if draft.content.chapters.iter().any(|chapter| {
+        chapter.title.trim().is_empty() || chapter.title.chars().any(char::is_control)
+    }) {
+        return Err(invalid("Each chapter needs a single-line title."));
+    }
+    Ok(())
+}
+
+/// Stage a complete Markdown book before making it visible in the app library.
+pub fn publish_draft(root: &Path, draft: &BookDraft) -> io::Result<String> {
+    validate_draft(draft)?;
+    let index_key = format!("Buches/{}/_index.md", draft.title);
+    let index_path = note_path(root, &index_key)?;
+    let destination = index_path.parent().unwrap();
+    if destination.try_exists()? {
+        return Err(invalid("A book with that folder name already exists."));
+    }
+    let collection = root.join("Buches");
+    fs::create_dir_all(&collection)?;
+    let staging = tempfile::tempdir_in(&collection)?;
+    let index = format!(
+        "---\ntitle: {}\ntype: buch\n---\n\n{}",
+        serde_json::json!(draft.title),
+        draft.content.introduction
+    );
+    write_draft_note(&staging.path().join("_index.md"), &index)?;
+    let concepts = staging.path().join("concepts");
+    fs::create_dir(&concepts)?;
+    for (index, chapter) in draft.content.chapters.iter().enumerate() {
+        let order = index + 1;
+        let text = format!(
+            "---\nname: {}\norder: {order}\ndepends_on: []\n---\n\n{}",
+            serde_json::json!(chapter.title),
+            chapter.markdown
+        );
+        write_draft_note(&concepts.join(format!("chapter-{order}.md")), &text)?;
+    }
+    fs::rename(staging.path(), destination)?;
+    Ok(index_key)
+}
+
+fn write_draft_note(path: &Path, text: &str) -> io::Result<()> {
+    if text.len() as u64 > MAX_NOTE_BYTES {
+        return Err(invalid("Markdown files must be smaller than 8 MiB."));
+    }
+    fs::write(path, text)
+}
+
 pub fn load(root: &Path) -> io::Result<Vec<Entry>> {
     let collection = root.join("Buches");
     fs::create_dir_all(&collection)?;
@@ -324,5 +422,38 @@ mod tests {
             .unwrap()
             .iter()
             .any(|entry| entry.path == key && entry.source.as_deref() == Some("New content")));
+    }
+
+    #[test]
+    fn publishes_only_complete_new_book_drafts() {
+        let root = tempfile::tempdir().unwrap();
+        let mut draft = BookDraft {
+            title: "Draft".into(),
+            content: BookContent {
+                introduction: "Introduction".into(),
+                chapters: vec![
+                    ChapterDraft {
+                        title: "First".into(),
+                        markdown: "Proof.".into(),
+                    },
+                    ChapterDraft {
+                        title: "Second".into(),
+                        markdown: "x".repeat(MAX_NOTE_BYTES as usize),
+                    },
+                ],
+            },
+        };
+        assert!(publish_draft(root.path(), &draft).is_err());
+        assert!(!root.path().join("Buches/Draft").exists());
+        draft.content.chapters[1].markdown = "Example.".into();
+        let key = publish_draft(root.path(), &draft).unwrap();
+        assert_eq!(key, "Buches/Draft/_index.md");
+        let chapter = root.path().join("Buches/Draft/concepts/chapter-2.md");
+        assert!(fs::read_to_string(&chapter).unwrap().contains("order: 2"));
+        draft.content.chapters[1].markdown = "Overwrite.".into();
+        assert!(publish_draft(root.path(), &draft).is_err());
+        assert!(fs::read_to_string(chapter).unwrap().ends_with("Example."));
+        draft.title = "../Elsewhere".into();
+        assert!(publish_draft(root.path(), &draft).is_err());
     }
 }

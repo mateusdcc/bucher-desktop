@@ -8,7 +8,9 @@ Use **Import books** in the Library sidebar and select a book folder containing 
 
 Open a chapter from the tree, then use the arrow at the bottom to advance and record the chapter as read. The toolbar opens exercises, flashcards, and quick notes, and the pencil edits the current Markdown file. Use **⌘K** on macOS or **Ctrl+K** elsewhere to search the library.
 
-Progress, flashcard scheduling, notes, and solution attempts stay in the same Markdown format as the original plugin. On macOS the books live in `~/Library/Application Support/com.mateusdcc.bucher/Buches`. Back up or copy that folder to move the library. References resolve within the imported library. The desktop port uses KaTeX for LaTeX, shows Typst proofs as editable source, and supports manual study workflows and saved AI attempts. Generating and grading with Claudian requires the Obsidian plugin.
+Progress, flashcard scheduling, notes, and solution attempts stay in the same Markdown format as the original plugin. On macOS the books live in `~/Library/Application Support/com.mateusdcc.bucher/Buches`. Back up or copy that folder to move the library. References resolve within the imported library. The desktop port uses KaTeX for LaTeX and shows Typst proofs as editable source.
+
+The [local AI command guide](docs/local-ai.md) covers the native Ollama API for explanations, solution drafts, proof review, patch proposals, and Markdown book import.
 
 ## Develop
 

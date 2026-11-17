@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod ai;
 mod library;
 
 use library::{Entry, ImportReport};
@@ -9,7 +10,7 @@ use tauri_plugin_dialog::DialogExt;
 
 static FILES: Mutex<()> = Mutex::new(());
 
-fn with_library<T>(
+pub(crate) fn with_library<T>(
     app: &AppHandle,
     operation: impl FnOnce(PathBuf) -> io::Result<T>,
 ) -> Result<T, String> {
@@ -84,7 +85,14 @@ fn main() {
             load_library,
             import_books,
             save_markdown,
-            discard_solution
+            discard_solution,
+            ai::ai_list_models,
+            ai::ai_explain,
+            ai::ai_generate_solution,
+            ai::ai_review_solution,
+            ai::ai_propose_patch,
+            ai::ai_prepare_import,
+            ai::ai_import_book
         ])
         .run(tauri::generate_context!())
         .expect("Bücher could not start");
