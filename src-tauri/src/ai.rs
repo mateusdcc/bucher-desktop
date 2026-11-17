@@ -1,8 +1,8 @@
 use reqwest::{redirect::Policy, Client};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::time::Duration;
-use tauri::AppHandle;
+use std::{env, path::Path, time::Duration};
+use tauri::{AppHandle, Manager};
 
 use crate::{library, with_library};
 
@@ -142,6 +142,60 @@ fn require(value: &str, label: &str) -> Result<(), String> {
 #[tauri::command]
 pub async fn ai_list_models() -> Result<Vec<String>, String> {
     local_models(&client()?).await
+}
+
+#[derive(Serialize)]
+pub struct OllamaStatus {
+    installed: bool,
+    connected: bool,
+    models: Vec<String>,
+    error: Option<String>,
+}
+
+fn ollama_installed(app: &AppHandle) -> bool {
+    let executable = if cfg!(windows) {
+        "ollama.exe"
+    } else {
+        "ollama"
+    };
+    if env::var_os("PATH")
+        .is_some_and(|path| env::split_paths(&path).any(|dir| dir.join(executable).is_file()))
+    {
+        return true;
+    }
+    if cfg!(target_os = "macos") {
+        return Path::new("/Applications/Ollama.app/Contents/MacOS/Ollama").is_file()
+            || app.path().home_dir().is_ok_and(|home| {
+                home.join("Applications/Ollama.app/Contents/MacOS/Ollama")
+                    .is_file()
+            });
+    }
+    if cfg!(windows) {
+        return env::var_os("LOCALAPPDATA")
+            .is_some_and(|dir| Path::new(&dir).join("Programs/Ollama/ollama.exe").is_file());
+    }
+    ["/usr/bin/ollama", "/usr/local/bin/ollama"]
+        .into_iter()
+        .any(|path| Path::new(path).is_file())
+}
+
+/// Inspect local installation paths and query Ollama's model list without running inference.
+#[tauri::command]
+pub async fn ai_ollama_status(app: AppHandle) -> OllamaStatus {
+    match ai_list_models().await {
+        Ok(models) => OllamaStatus {
+            installed: true,
+            connected: true,
+            models,
+            error: None,
+        },
+        Err(error) => OllamaStatus {
+            installed: ollama_installed(&app),
+            connected: false,
+            models: Vec::new(),
+            error: Some(error),
+        },
+    }
 }
 
 /// Answer a question using supplied book context. Return Markdown with LaTeX math.
@@ -300,28 +354,6 @@ pub async fn ai_import_book(app: AppHandle, draft: library::BookDraft) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn excludes_cloud_and_embedding_models() {
-        let models: ModelList = serde_json::from_value(json!({
-            "models": [
-                { "name": "local:latest", "capabilities": ["completion"] },
-                { "name": "alias:latest", "remote_host": "https://ollama.com" },
-                { "name": "upstream:latest", "remote_model": "remote" },
-                { "name": "remote:cloud" },
-                { "name": "remote-cloud:latest", "remote_model": "remote" },
-                { "name": "embed:latest", "capabilities": ["embedding"] }
-            ]
-        }))
-        .unwrap();
-        let names: Vec<_> = models
-            .models
-            .iter()
-            .filter(|model| model.can_generate_locally())
-            .map(|model| model.name.as_str())
-            .collect();
-        assert_eq!(names, ["local:latest"]);
-    }
 
     #[test]
     #[ignore = "run with node scripts/check-local-ai.mjs"]

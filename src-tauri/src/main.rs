@@ -87,6 +87,7 @@ fn main() {
             save_markdown,
             discard_solution,
             ai::ai_list_models,
+            ai::ai_ollama_status,
             ai::ai_explain,
             ai::ai_generate_solution,
             ai::ai_review_solution,

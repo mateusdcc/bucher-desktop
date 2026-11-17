@@ -3,6 +3,7 @@ import solutions from './model/solution-notes';
 import intro from './model/intro-model';
 import language from './model/language';
 import { headingId } from './markdown';
+import { inlineSolutionEditor } from './solution-editor';
 import { button, el, icon, iconButton, notice } from './ui';
 
 const { countsFor, statusFor } = progressModel;
@@ -102,13 +103,19 @@ function callout(unit, chapter, ctx) {
   }
   block.append(row, el('h2', 'callout-title', title));
   const body = unit.callout ? calloutBody(unit) : '';
-  if (body.trim()) block.append(ctx.markdown(body, chapter.path));
+  if (body.trim()) {
+    const explanation = el('div', 'explanation-anchor');
+    row.append(iconButton('Explain ' + title + ' with AI', 'message-circle-question-mark',
+      () => ctx.ai.explain(explanation, title + '\n\n' + body, chapter.path, title)));
+    block.prepend(explanation);
+    block.append(ctx.markdown(body, chapter.path));
+  }
   return block;
 }
 
 function solutionEditor(panel, state, chapter, exercise, ctx) {
   const unit = exercise.solution ?? { virtual: true, exercise, markdown: '' };
-  const { book, plugin, library, markdown, editFile, changed } = ctx;
+  const { book, plugin, library, markdown, changed, ai } = ctx;
   const primary = exercise.solution && resolveEmbed(library.app, chapter.file, unit);
   const tabs = exercise.solution ? [
     { title: primaryKind(unit) === 'ai' ? 'AI solution' : 'Solution', path: primary?.path ?? '', body: primarySolution(unit) },
@@ -117,14 +124,46 @@ function solutionEditor(panel, state, chapter, exercise, ctx) {
     })),
   ] : [];
   state.tab = Math.min(state.tab, Math.max(0, tabs.length - 1));
-  const newAttempt = button('New attempt', 'plus', async () => {
-    const note = exercise.solution
-      ? await appendSolutionTab(plugin, chapter.file, book, unit, 'manual', 'mathjax')
-      : await materializeSolution(plugin, chapter.file, book, unit, 'mathjax');
-    state.tab = tabs.length;
-    await changed();
-    editFile(note, 'Edit attempt');
+  const question = (exercise.unit.callout && calloutBody(exercise.unit)) || exercise.title;
+  const scope = exercise.title;
+  function startDraft({ initial, typst, path, save }) {
+    const text = initial.replace(/\r\n?/g, '\n');
+    state.draft = { initial: text, text, typst, path, save };
+    draw();
+    body.querySelector('.cm-content').focus();
+  }
+  const startAttempt = () => startDraft({
+    initial: '', path: chapter.path,
+    async save(text) {
+      if (exercise.solution) {
+        await appendSolutionTab(plugin, chapter.file, book, unit, 'manual', 'mathjax', text);
+      } else {
+        await materializeSolution(plugin, chapter.file, book, unit, 'mathjax', text);
+      }
+      state.tab = tabs.length;
+    },
   });
+  const newAttempt = button('New attempt', 'plus', startAttempt);
+  function editAttempt(selected) {
+    const file = selected.path ? library.resolve(selected.path, chapter.path) : null;
+    if (selected.path && !file) throw new Error('The solution note is missing.');
+    const original = file?.source;
+    const initial = file ? stripFrontmatter(original, false) : selected.body;
+    const typst = file ? file.frontmatter.renderer === 'typst' : unit.engine === 'typst';
+    startDraft({
+      initial, typst, path: file?.path ?? chapter.path,
+      async save(text) {
+        if (file) {
+          await library.app.vault.process(file, latest => {
+            if (latest !== original) throw new Error('The solution changed. Reopen it before editing.');
+            return original.slice(0, original.length - initial.length) + text;
+          });
+        } else if (!await materializeSolution(plugin, chapter.file, book, unit, typst ? 'typst' : 'mathjax', text)) {
+          throw new Error('The solution note is missing.');
+        }
+      },
+    });
+  }
   function proof(tab, compare = false) {
     const note = tab.path ? library.resolve(tab.path, chapter.path) : null;
     const body = note ? stripFrontmatter(note.source) : tab.body;
@@ -137,10 +176,36 @@ function solutionEditor(panel, state, chapter, exercise, ctx) {
       !body ? el('p', 'muted', tab.path && !note ? 'The solution note is missing.' : 'No solution text yet.') : null);
     return box;
   }
+  const aiHost = el('div', 'solution-ai');
+  const generate = () => ai.solve(aiHost, question, stripFrontmatter(chapter.file.source), chapter.path, scope,
+    async text => {
+      const note = await appendSolutionTab(plugin, chapter.file, book, unit, 'ai', 'mathjax', text);
+      const latest = await plugin.learning.page(chapter.file, chapter.file.source);
+      const updated = latest.nodes.find(node => node.type === 'exercise' && node.id === exercise.id)?.solution;
+      const index = updated ? solutionTabs(updated).findIndex(tab => tab.path === note.path) : -1;
+      state.tab = index + 1;
+      state.compare = false;
+      await changed();
+    });
   let body;
   function draw() {
     body?.remove();
     body = el('div', 'solution-inner');
+    if (state.draft) {
+      const draft = state.draft;
+      body.append(inlineSolutionEditor(draft,
+        text => draft.typst ? el('pre', 'typst-source', text) : markdown(text, draft.path),
+        async text => {
+          if (text !== draft.initial) await draft.save(text);
+          state.draft = null;
+          await changed();
+        }, () => {
+          state.draft = null;
+          draw();
+        }));
+      panel.append(body);
+      return;
+    }
     if (tabs.length > 1) {
       const tabBar = el('div', 'solution-tabs');
       for (const [index, tab] of tabs.entries()) {
@@ -159,13 +224,17 @@ function solutionEditor(panel, state, chapter, exercise, ctx) {
       body.append(tabBar);
     }
     const selected = tabs[state.tab];
-    const controls = el('div', 'solution-actions', newAttempt);
+    const controls = el('div', 'solution-actions', exercise.solution ? [
+      newAttempt, button('Generate solution with AI', 'sparkles', generate),
+    ] : []);
     if (selected) {
-      controls.append(button('Edit', 'pencil', async () => {
-        const file = selected.path ? library.resolve(selected.path, chapter.path)
-          : await materializeSolution(plugin, chapter.file, book, unit, 'mathjax');
-        if (!file) throw new Error('The solution note is missing.');
-        editFile(file, 'Edit solution');
+      controls.append(button('Edit', 'pencil', () => editAttempt(selected)));
+      const note = selected.path ? library.resolve(selected.path, chapter.path) : null;
+      const attempt = note ? stripFrontmatter(note.source) : selected.body;
+      if (attempt.trim()) controls.append(button('Review attempt with AI', 'clipboard-check', () => {
+        const rubric = book.index.frontmatter.grading;
+        return ai.review(question, attempt, rubric ? JSON.stringify(rubric) : null,
+          note?.path ?? chapter.path, scope + ' · ' + selected.title);
       }));
     }
     if (tabs.length > 1 && selected) {
@@ -193,10 +262,11 @@ function solutionEditor(panel, state, chapter, exercise, ctx) {
         body.append(proof(selected));
       }
     }
-    body.append(controls);
+    body.append(controls, aiHost);
     panel.append(body);
   }
   draw();
+  return { startAttempt, generate };
 }
 
 function exerciseTools(chapter, exercise, ctx) {
@@ -220,20 +290,34 @@ function exerciseTools(chapter, exercise, ctx) {
   if (required) panel.append(required);
   const controls = el('div', 'exercise-actions');
   const proof = el('div', 'solution-panel');
-  const reveal = button(state.open ? 'Hide solution' : exercise.solution ? 'Reveal solution' : 'Work on solution',
-    state.open ? 'eye-off' : 'eye', () => {
+  const reveal = button('', null, () => {
+      if (!exercise.solution) {
+        state.open = true;
+        const { startAttempt } = redraw();
+        if (!state.draft) startAttempt();
+        else proof.querySelector('.cm-content')?.focus();
+        return;
+      }
       state.open = !state.open;
       redraw();
     });
   controls.append(reveal, button(solved ? 'Solved' : 'Mark solved', solved ? 'check' : 'circle-check',
     async () => { await progress.set(model, target, !solved); await changed(); }, solved ? 'accent' : ''));
+  if (!exercise.solution) controls.append(button('Generate solution with AI', 'sparkles', () => {
+    if (state.draft) {
+      notice('Save or discard the current draft first.');
+      return;
+    }
+    state.open = true;
+    redraw().generate();
+  }));
   function redraw() {
-    reveal.replaceChildren(icon(state.open ? 'eye-off' : 'eye'),
-      state.open ? 'Hide solution' : exercise.solution ? 'Reveal solution' : 'Work on solution');
+    reveal.replaceChildren(icon(!exercise.solution ? 'pencil' : state.open ? 'eye-off' : 'eye'),
+      !exercise.solution ? 'Write a solution' : state.open ? 'Hide solution' : 'Reveal solution');
     reveal.setAttribute('aria-expanded', String(state.open));
     proof.replaceChildren();
     proof.hidden = !state.open;
-    if (state.open) solutionEditor(proof, state, chapter, exercise, ctx);
+    if (state.open) return solutionEditor(proof, state, chapter, exercise, ctx);
   }
   redraw();
   panel.append(controls, proof);

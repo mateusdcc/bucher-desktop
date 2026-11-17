@@ -44,7 +44,7 @@ async function queueSolutionWrite(plugin, chapter, write) {
   }
 }
 
-function writeSolution(plugin, chapter, book, unit, kind, engine) {
+function writeSolution(plugin, chapter, book, unit, kind, engine, draft) {
   const { vault } = plugin.app;
   return queueSolutionWrite(plugin, chapter, async () => {
     const latest = await vault.read(chapter);
@@ -52,7 +52,8 @@ function writeSolution(plugin, chapter, book, unit, kind, engine) {
     const exercise = page.nodes.find(node => node.type === 'exercise' && node.id === unit.exercise.id);
     let current = exercise?.solution;
     if (!kind && current && isSolutionEmbed(current)) return resolveEmbed(plugin.app, chapter, current);
-    if (!exercise || (!current && !unit.virtual) || (current && !kind && current.source !== unit.source)) {
+    if (!exercise || (!current && !unit.virtual) || (current && !kind && current.source !== unit.source)
+      || (kind === 'ai' && exercise.unit.source !== unit.exercise.unit.source)) {
       throw new Error('The solution changed. Reopen it to load the latest version.');
     }
     const addingSection = !current;
@@ -76,7 +77,7 @@ function writeSolution(plugin, chapter, book, unit, kind, engine) {
         ? (current.engine ?? engine)
         : engine;
     const renderer = noteEngine === 'mathjax' ? 'latex' : 'typst';
-    const content = `---\nrenderer: ${renderer}\n---\n\n${body}`;
+    const content = `---\nrenderer: ${renderer}\n---\n\n${draft ?? body}`;
     const note = await vault.create(`${folder}/${crypto.randomUUID()}.md`, content);
     try {
       await vault.process(chapter, text => {
@@ -87,9 +88,10 @@ function writeSolution(plugin, chapter, book, unit, kind, engine) {
         const suffix = tabOffset === undefined ? '' : current.markdown.slice(tabOffset);
         const separator = current.source && !current.source.endsWith('\n') ? newline : '';
         const prefix = current.added ? ADDED_SOLUTION + newline : '';
-        let replacement = kind
+        const primary = kind === 'ai' || (!kind && primaryKind(current) === 'ai') ? PRIMARY_AI + newline : '';
+        let replacement = kind && !addingSection
           ? current.source + separator + `<!-- buches-solution-tab: ${kind} -->${newline}` + link
-          : prefix + link + suffix;
+          : prefix + primary + link + suffix;
         if (addingSection) {
           replacement = [newline, newline, '---', newline, ADDED_SOLUTION, newline,
             replacement, '---', newline, newline].join('');
@@ -139,13 +141,13 @@ async function removeSolutionTab(plugin, chapter, book, unit, path, engine) {
   });
 }
 
-function materializeSolution(plugin, chapter, book, unit, engine) {
+function materializeSolution(plugin, chapter, book, unit, engine, draft) {
   if (isSolutionEmbed(unit)) return resolveEmbed(plugin.app, chapter, unit);
-  return writeSolution(plugin, chapter, book, unit, null, engine);
+  return writeSolution(plugin, chapter, book, unit, null, engine, draft);
 }
 
-function appendSolutionTab(plugin, chapter, book, unit, kind, engine) {
-  return writeSolution(plugin, chapter, book, unit, kind, engine);
+function appendSolutionTab(plugin, chapter, book, unit, kind, engine, draft) {
+  return writeSolution(plugin, chapter, book, unit, kind, engine, draft);
 }
 
 module.exports = { isSolutionEmbed, resolveEmbed, materializeSolution, appendSolutionTab, solutionTabs, primarySolution, primaryKind, removeSolutionTab };

@@ -1,5 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import katex from 'katex';
+import { typst2tex } from 'tex2typst';
 import math from './model/math';
 
 const md = new MarkdownIt({ html: false, linkify: true });
@@ -25,6 +26,21 @@ md.inline.ruler.before('text', 'cloze', (state, silent) => {
 });
 
 const escape = md.utils.escapeHtml;
+const renderFence = md.renderer.rules.fence;
+md.renderer.rules.fence = (tokens, i, options, env, renderer) => {
+  const { info, content } = tokens[i];
+  const equation = /^\$([^$]+)\$$/.exec(content.trim())?.[1].trim();
+  if (info.trim() === 'typst' && equation) {
+    try {
+      const formula = katex.renderToString(typst2tex(equation), { displayMode: true });
+      return '<div class="typst-math">' + formula + '</div>';
+    } catch {
+      // Keep unsupported Typst intact and visible as source.
+    }
+  }
+  return renderFence(tokens, i, options, env, renderer);
+};
+
 md.renderer.rules.cloze = (tokens, i, _options, env) => {
   const [text, hint] = tokens[i].content.split(';;');
   return env.quiz
@@ -85,4 +101,8 @@ export function renderMarkdown(source, env) {
     }));
   }
   return html;
+}
+
+export function markdownBlockLines(source) {
+  return md.parse(source, {}).flatMap(token => token.level === 0 && token.map ? [token.map] : []);
 }

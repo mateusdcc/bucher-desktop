@@ -5,6 +5,7 @@ import 'katex/dist/katex.css';
 import './styles.css';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { createAiActions } from './ai';
 import libraryModel from './model/library';
 import catalog from './model/catalog';
 import learningModel from './model/learning';
@@ -15,6 +16,8 @@ import intro from './model/intro-model';
 import memory from './model/book-memory';
 import { headingId, renderMarkdown } from './markdown';
 import { showChapter, showExercises, showOutline, showOverview, statusIndicator } from './reader';
+import { panelResize } from './panel-resize';
+import { settingsPage } from './settings';
 import { capture, showCards, showNotes } from './study';
 import { button, dialog, editor, el, formDialog, icon, iconButton, notice, report } from './ui';
 
@@ -39,16 +42,48 @@ nav.setAttribute('aria-label', 'Book navigation');
 const toolbar = el('header', 'toolbar');
 const article = el('article', 'article');
 const outline = el('aside', 'outline');
-const scroll = el('main', 'reading-scroll', el('div', 'reading-layout', article, outline));
+const readerRail = el('aside', 'reader-rail');
+readerRail.setAttribute('aria-label', 'Reader tools');
+const readerSide = el('div', 'reader-side', outline, readerRail);
+readerSide.id = 'reader-side';
+const scroll = el('div', 'reading-scroll', article);
 scroll.id = 'reading-scroll';
+const readingLayout = el('main', 'reading-layout', scroll, readerSide);
 const shell = el('div', 'shell');
 let data = new Map();
 let route = { path: '', mode: 'read', scope: '' };
 let searchPanel;
 let renderId = 0;
 let quiz = false;
+let utility;
+
+function openWorkspace(content) {
+  utility = content;
+  readerRail.replaceChildren();
+  shell.classList.remove('nav-open');
+  return render();
+}
+
+function closeWorkspace() {
+  utility = null;
+  return render();
+}
+
+function openSettings(section) {
+  return openWorkspace(settingsPage(library, section));
+}
 
 const asset = path => convertFileSrc(library.basePath + '/' + path);
+const ai = createAiActions({
+  markdown, openSettings: () => openSettings('ai'), vault: library.app.vault,
+  changed: refresh, openWorkspace, closeWorkspace, readerRail,
+  async openImportedBook(path) {
+    library.load(await invoke('load_library'));
+    await refresh(false);
+    await openFile(path);
+    notice('Book imported.');
+  },
+});
 function markdown(source, path) {
   const body = el('div', 'markdown');
   body.innerHTML = renderMarkdown(source, { library, path, asset, quiz });
@@ -90,6 +125,8 @@ async function openFile(path, fragment = '') {
     }
     return;
   }
+  utility = null;
+  readerRail.replaceChildren();
   route = { path, mode: 'read', scope: '' };
   shell.classList.remove('nav-open');
   quiz = false;
@@ -100,6 +137,7 @@ async function openFile(path, fragment = '') {
 }
 
 function openMode(mode, scope = '') {
+  readerRail.replaceChildren();
   route = { ...route, mode: route.mode === mode && scope === route.scope ? 'read' : mode, scope };
   shell.classList.remove('nav-open');
   return render();
@@ -195,7 +233,7 @@ function renderNav() {
   function row({ path, name, glyph, depth, children, toggle, open, status, add, sheet }) {
     const line = el('div', 'tree-row');
     line.style.setProperty('--depth', depth);
-    const current = route.path === path;
+    const current = !utility && route.path === path;
     line.classList.toggle('active', current);
     let chevron;
     if (children) {
@@ -302,6 +340,14 @@ async function render(keepScroll = false) {
   const entry = findBook(route.path);
   const sideToggle = iconButton('Toggle library', 'panel-left', () => shell.classList.toggle('nav-open'));
   sideToggle.classList.add('mobile-nav');
+  if (utility) {
+    toolbar.replaceChildren(el('div', 'breadcrumb', sideToggle,
+      button('Back to reader', 'arrow-left', closeWorkspace)));
+    article.replaceChildren(utility);
+    outline.replaceChildren();
+    scroll.scrollTop = scrollTop;
+    return;
+  }
   if (!entry) {
     toolbar.replaceChildren(sideToggle);
     article.replaceChildren(el('h1', 'page-title', 'Your library'),
@@ -319,12 +365,17 @@ async function render(keepScroll = false) {
     chapter || modeTitle ? icon('chevron-right') : null,
     chapter || modeTitle ? el('span', 'crumb-page', modeTitle || chapter.name) : null);
   const tools = el('div', 'toolbar-actions');
+  const explanation = el('div', 'explanation-anchor');
   for (const [glyph, label, mode] of [['clipboard-list', 'Exercises', 'exercises'], ['layers', 'Flashcards', 'cards'], ['notebook-pen', 'Quick notes', 'notes']]) {
     const control = iconButton(label, glyph, () => openMode(mode));
     control.setAttribute('aria-pressed', String(route.mode === mode));
     tools.append(control);
   }
   if (route.mode === 'read') {
+    const scope = chapter ? `${book.title} · ${chapter.name}` : `${book.title} · Introduction`;
+    tools.append(
+      iconButton('Explain with AI', 'message-circle-question-mark', () => ai.explain(explanation, stripFrontmatter(file.source), file.path, scope)),
+      iconButton('Propose a patch', 'wand-sparkles', () => ai.proposePatch(file, scope)));
     if (chapter) {
       if (/==[^=\n]+==/.test(file.source)) {
         const toggle = iconButton('Cloze quiz', 'brain', () => { quiz = !quiz; return render(true); });
@@ -337,7 +388,7 @@ async function render(keepScroll = false) {
   }
   const ctx = {
     ...entry, library, plugin, progress, states, markdown, asset, openFile, openMode, jump, editFile,
-    changed: refresh, addChapter, editBookNote: (name, title) => editBookNote(book, name, title),
+    changed: refresh, addChapter, ai, editBookNote: (name, title) => editBookNote(book, name, title),
   };
   const content = el('div', 'page');
   const side = el('div', 'outline-inner');
@@ -350,7 +401,7 @@ async function render(keepScroll = false) {
   } else showOverview(content, ctx);
   if (id !== renderId) return;
   toolbar.replaceChildren(crumb, tools);
-  article.replaceChildren(content);
+  article.replaceChildren(explanation, content);
   outline.replaceChildren(side);
   scroll.scrollTop = scrollTop;
 }
@@ -362,9 +413,16 @@ function setup() {
     el('div', 'sidebar-brand', icon('book-open'), el('span', '', 'Bücher')),
     search,
     el('div', 'library-heading', el('h2', 'eyebrow', 'Library'), iconButton('New book', 'plus', addBook),
-      iconButton('Import books', 'folder-down', importBooks)),
-    nav);
-  shell.append(sidebar, el('section', 'workspace', toolbar, scroll));
+      iconButton('Import books', 'folder-down', importBooks),
+      iconButton('Import with AI', 'sparkles', ai.importBook)),
+    nav,
+    button('Settings', 'settings', () => openSettings(), 'sidebar-settings'));
+  sidebar.id = 'library-sidebar';
+  panelResize(shell, sidebar, { name: 'Resize library', property: 'library-width', width: 288,
+    min: 215, max: 440, fraction: .37, edge: 'right' });
+  panelResize(readingLayout, readerSide, { name: 'Resize reader tools', property: 'reader-width', width: 320,
+    min: 185, max: 540, fraction: .44, edge: 'left' });
+  shell.append(sidebar, el('section', 'workspace', toolbar, readingLayout));
   root.replaceChildren(shell);
 }
 

@@ -8,7 +8,11 @@ Use **Import books** in the Library sidebar and select a book folder containing 
 
 Open a chapter from the tree, then use the arrow at the bottom to advance and record the chapter as read. The toolbar opens exercises, flashcards, and quick notes, and the pencil edits the current Markdown file. Use **⌘K** on macOS or **Ctrl+K** elsewhere to search the library.
 
+Drag the dividers at the library and reader tool panels to resize them, or focus a divider and press the arrow keys. Bücher saves both widths across launches.
+
 Progress, flashcard scheduling, notes, and solution attempts stay in the same Markdown format as the original plugin. On macOS the books live in `~/Library/Application Support/com.mateusdcc.bucher/Buches`. Back up or copy that folder to move the library. References resolve within the imported library. The desktop port uses KaTeX for LaTeX and shows Typst proofs as editable source.
+
+Choose **Write a solution**, **New attempt**, or **Edit** to write directly in the reader. The block you are editing shows its Markdown source, while surrounding blocks render as you write. **Insert Typst** adds a fenced equation. Supported Typst equations render in the reader and other Typst code stays editable as source.
 
 The [local AI command guide](docs/local-ai.md) covers the native Ollama API for explanations, solution drafts, proof review, patch proposals, and Markdown book import.
 
