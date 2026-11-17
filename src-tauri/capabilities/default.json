@@ -1,0 +1,6 @@
+{
+  "identifier": "main",
+  "description": "Allows the reader to open web references in the system browser.",
+  "windows": ["main"],
+  "permissions": ["opener:allow-default-urls"]
+}
