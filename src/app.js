@@ -6,6 +6,7 @@ import './styles.css';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { createAiActions } from './ai';
+import { showCommandPalette } from './command-palette';
 import libraryModel from './model/library';
 import catalog from './model/catalog';
 import learningModel from './model/learning';
@@ -15,7 +16,7 @@ import storage from './model/storage';
 import intro from './model/intro-model';
 import memory from './model/book-memory';
 import { headingId, renderMarkdown } from './markdown';
-import { showChapter, showExercises, showOutline, showOverview, statusIndicator } from './reader';
+import { showChapter, showExercises, showNote, showOutline, showOverview, statusIndicator } from './reader';
 import { panelResize } from './panel-resize';
 import { settingsPage } from './settings';
 import { capture, showCards, showNotes } from './study';
@@ -36,7 +37,7 @@ const states = new Map();
 const expanded = new Set();
 const collapsed = new Set();
 const root = document.querySelector('#app');
-const shortcut = /Mac/i.test(navigator.platform) ? '⌘ K' : 'Ctrl K';
+const modifier = /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl';
 const nav = el('nav', 'tree');
 nav.setAttribute('aria-label', 'Book navigation');
 const toolbar = el('header', 'toolbar');
@@ -48,7 +49,23 @@ const readerSide = el('div', 'reader-side', outline, readerRail);
 readerSide.id = 'reader-side';
 const scroll = el('div', 'reading-scroll', article);
 scroll.id = 'reading-scroll';
+const jumpBar = el('div', 'jump-bar');
+const jumpStack = [];
 const readingLayout = el('main', 'reading-layout', scroll, readerSide);
+const referenceScroll = el('div', 'reference-scroll');
+referenceScroll.tabIndex = 0;
+referenceScroll.setAttribute('aria-label', 'Reference text');
+const closeReferenceButton = iconButton('Close reference pane', 'x', closeReference);
+const referenceTitle = el('h2', 'eyebrow reference-title');
+const referencePane = el('aside', 'reference-pane', el('header', 'reference-header',
+  referenceTitle, closeReferenceButton), referenceScroll);
+referencePane.setAttribute('aria-label', 'Reference pane');
+const readerStage = el('div', 'reader-stage', readingLayout, referencePane);
+const referenceLayouts = [
+  { layout: 'vertical', glyph: 'columns-2', label: 'Split vertically from jumped', keywords: 'reference side by side right' },
+  { layout: 'horizontal', glyph: 'rows-2', label: 'Split horizontally from jumped', keywords: 'reference stacked below bottom' },
+  { layout: 'floating', glyph: 'panels-top-left', label: 'Float jumped reference', keywords: 'floating window popup' },
+];
 const shell = el('div', 'shell');
 let data = new Map();
 let route = { path: '', mode: 'read', scope: '' };
@@ -56,6 +73,7 @@ let searchPanel;
 let renderId = 0;
 let quiz = false;
 let utility;
+let reference;
 
 function openWorkspace(content) {
   utility = content;
@@ -85,6 +103,10 @@ const ai = createAiActions({
   },
 });
 function markdown(source, path) {
+  return renderText(source, path, quiz);
+}
+
+function renderText(source, path, quiz = false) {
   const body = el('div', 'markdown');
   body.innerHTML = renderMarkdown(source, { library, path, asset, quiz });
   return body;
@@ -109,10 +131,149 @@ function showSelection(path) {
   }
 }
 
+function fragmentTarget(host, fragment, prefix = '') {
+  if (!fragment) return null;
+  const slug = headingId(fragment);
+  return host.querySelector(`#${CSS.escape(prefix + fragment)}`)
+    ?? (slug ? host.querySelector(`#${CSS.escape(prefix + slug)}`) : null);
+}
+
 function jump(fragment) {
-  if (!fragment) return;
-  const target = document.getElementById(fragment) ?? document.getElementById(headingId(fragment));
-  if (target && article.contains(target)) target.scrollIntoView({ block: 'start' });
+  fragmentTarget(article, fragment)?.scrollIntoView({ block: 'start' });
+}
+
+function pageName(path) {
+  const entry = findBook(path);
+  if (entry?.book.index.path === path) return entry.book.title;
+  const file = library.file(path);
+  return entry?.model.byPath.get(path)?.name || file?.frontmatter.name || file?.name.replace(/\.md$/i, '') || '';
+}
+
+function passageBlocks(host) {
+  return [...host.querySelectorAll('.page > :not(.chapter-body), .chapter-body > *')];
+}
+
+function rememberPassage(host) {
+  const top = host.getBoundingClientRect().top;
+  const blocks = passageBlocks(host);
+  const index = blocks.findIndex(block => block.getBoundingClientRect().bottom > top);
+  return { index, offset: index < 0 ? 0 : blocks[index].getBoundingClientRect().top - top, scrollTop: host.scrollTop };
+}
+
+function restorePassage(host, passage) {
+  const block = passageBlocks(host)[passage.index];
+  if (!block) {
+    host.scrollTop = passage.scrollTop;
+    return;
+  }
+  const offset = Math.min(passage.offset, host.clientHeight / 3);
+  host.scrollTop += block.getBoundingClientRect().top - host.getBoundingClientRect().top - offset;
+}
+
+function renderJump() {
+  const origin = !utility && jumpStack.at(-1);
+  jumpBar.hidden = !origin;
+  readingLayout.style.setProperty('--jump-border', origin ? jumpStack.map((_, index) =>
+    `inset -${8 * (index + 1)}px 0 hsl(${(181 + index * 67) % 360} 55% 61%)`).join(', ') : 'none');
+  if (!origin) return;
+  const back = button('Go back', 'undo-2', goBack);
+  jumpBar.replaceChildren(back, el('span', 'jump-origin', pageName(origin.route.path)),
+    el('span', 'jump-depth', `${jumpStack.length} ${jumpStack.length === 1 ? 'jump' : 'jumps'}`));
+}
+
+/** Follow a reader reference and retain the source route, scroll position, and link for Go back. */
+async function openReference(path, fragment, source) {
+  if (utility || !route.path || !findBook(path)) return openFile(path, fragment);
+  if (route.path === path && route.mode === 'read' && !fragmentTarget(article, fragment)) return;
+  const host = article.contains(source) ? article : outline.contains(source) ? outline : null;
+  jumpStack.push({
+    route, quiz, passage: rememberPassage(scroll), outlineTop: outline.scrollTop, host, fragment,
+    linkIndex: host ? [...host.querySelectorAll('a, button')].indexOf(source) : -1,
+    linkText: source?.textContent,
+  });
+  if (path !== route.path || route.mode !== 'read') quiz = false;
+  utility = null;
+  readerRail.replaceChildren();
+  route = { path, mode: 'read', scope: '' };
+  shell.classList.remove('nav-open');
+  showSelection(path);
+  await render();
+  jump(fragment);
+  jumpBar.querySelector('button')?.focus({ preventScroll: true });
+}
+
+async function goBack() {
+  const origin = jumpStack.pop();
+  if (!origin) return;
+  await restoreOrigin(origin);
+}
+
+async function restoreOrigin(origin, resized = false) {
+  utility = null;
+  readerRail.replaceChildren();
+  route = origin.route;
+  quiz = origin.quiz;
+  showSelection(route.path);
+  await render();
+  const candidate = origin.host?.querySelectorAll('a, button')[origin.linkIndex];
+  const link = candidate?.textContent === origin.linkText ? candidate : null;
+  if (link) {
+    for (let details = link.closest('details'); details; details = details.parentElement.closest('details')) details.open = true;
+  }
+  if (resized) restorePassage(scroll, origin.passage);
+  else scroll.scrollTop = origin.passage.scrollTop;
+  outline.scrollTop = origin.outlineTop;
+  if (link?.getClientRects().length) {
+    if (resized && scroll.contains(link)) link.scrollIntoView({ block: 'nearest' });
+    link.focus({ preventScroll: true });
+  } else jumpBar.querySelector('button')?.focus({ preventScroll: true });
+}
+
+function renderLayout() {
+  const layout = !utility && reference?.layout;
+  readerStage.dataset.layout = layout || '';
+  referencePane.hidden = !layout;
+}
+
+function showReference(path, fragment, passage) {
+  const file = library.file(path);
+  if (file?.extension !== 'md') return;
+  const entry = findBook(path);
+  const chapter = entry?.model.byPath.get(path);
+  const content = el('div', 'page');
+  if (chapter) showChapter(content, chapter, { ...entry, markdown: renderText, referenceOnly: true });
+  else showNote(content, file, pageName(path), renderText);
+  for (const node of content.querySelectorAll('[id]')) node.id = 'reference-' + node.id;
+  referenceTitle.textContent = 'Reference · ' + pageName(path);
+  referenceScroll.replaceChildren(el('div', 'article', content));
+  referenceScroll.scrollTop = 0;
+  const target = fragmentTarget(referenceScroll, fragment, 'reference-');
+  if (passage && !target) restorePassage(referenceScroll, passage);
+  else target?.scrollIntoView({ block: 'start' });
+}
+
+/** Move the current reference into a reading pane and restore its immediate source in the main reader. */
+async function detachReference(layout) {
+  const origin = jumpStack.pop();
+  if (!origin) return;
+  const path = route.path;
+  const passage = rememberPassage(scroll);
+  const resized = layout !== 'floating' || (reference && reference.layout !== 'floating');
+  reference = { layout };
+  await restoreOrigin(origin, resized);
+  showReference(path, origin.fragment, passage);
+  if (!document.activeElement?.closest('.reading-layout, .jump-bar')) {
+    referenceScroll.focus({ preventScroll: true });
+  }
+}
+
+function closeReference() {
+  const passage = rememberPassage(scroll);
+  reference = null;
+  renderLayout();
+  restorePassage(scroll, passage);
+  referenceScroll.replaceChildren();
+  toolbar.querySelector('[aria-keyshortcuts]')?.focus({ preventScroll: true });
 }
 
 async function openFile(path, fragment = '') {
@@ -125,6 +286,7 @@ async function openFile(path, fragment = '') {
     }
     return;
   }
+  jumpStack.length = 0;
   utility = null;
   readerRail.replaceChildren();
   route = { path, mode: 'read', scope: '' };
@@ -333,23 +495,52 @@ function searchLibrary() {
   });
 }
 
+function openCommandPalette() {
+  if (document.querySelector('dialog[open]')) return;
+  const commands = [
+    { label: 'Search library', glyph: 'search', run: searchLibrary },
+    { label: 'Open settings', glyph: 'settings', run: () => openSettings() },
+  ];
+  if (utility) commands.unshift({ label: 'Back to reader', glyph: 'arrow-left', run: closeWorkspace });
+  else if (route.path) {
+    for (const [mode, label, glyph] of [
+      ['exercises', 'Open exercises', 'clipboard-list'],
+      ['cards', 'Open flashcards', 'layers'],
+      ['notes', 'Open quick notes', 'notebook-pen'],
+    ]) {
+      if (mode !== route.mode) commands.push({ label, glyph, run: () => openMode(mode) });
+    }
+    if (jumpStack.length) commands.unshift({ label: 'Go back', glyph: 'undo-2', run: goBack });
+    if (jumpStack.length && route.mode === 'read') {
+      commands.unshift(...referenceLayouts.map(({ layout, ...command }) => ({ ...command, run: () => detachReference(layout) })));
+    }
+    if (reference) commands.push({ label: 'Close reference pane', glyph: 'x', run: closeReference });
+  }
+  showCommandPalette(commands);
+}
+
 async function render(keepScroll = false) {
   const id = ++renderId;
   const scrollTop = keepScroll ? scroll.scrollTop : 0;
   renderNav();
+  renderJump();
+  renderLayout();
   const entry = findBook(route.path);
   const sideToggle = iconButton('Toggle library', 'panel-left', () => shell.classList.toggle('nav-open'));
   sideToggle.classList.add('mobile-nav');
+  const palette = iconButton('Command palette', 'command', openCommandPalette);
+  palette.title += ` (${modifier} P)`;
+  palette.setAttribute('aria-keyshortcuts', 'Meta+P Control+P');
   if (utility) {
     toolbar.replaceChildren(el('div', 'breadcrumb', sideToggle,
-      button('Back to reader', 'arrow-left', closeWorkspace)));
+      button('Back to reader', 'arrow-left', closeWorkspace)), palette);
     article.replaceChildren(utility);
     outline.replaceChildren();
     scroll.scrollTop = scrollTop;
     return;
   }
   if (!entry) {
-    toolbar.replaceChildren(sideToggle);
+    toolbar.replaceChildren(sideToggle, palette);
     article.replaceChildren(el('h1', 'page-title', 'Your library'),
       el('div', 'page-actions', button('Import books', 'folder-open', importBooks, 'accent-button'), button('New book', 'plus', addBook)));
     outline.replaceChildren();
@@ -357,13 +548,14 @@ async function render(keepScroll = false) {
   }
   const { book, model } = entry;
   const chapter = model.byPath.get(route.path);
-  const file = chapter?.file ?? book.index;
+  const file = library.file(route.path) ?? book.index;
+  const pageTitle = file.path === book.index.path ? '' : pageName(file.path);
   const modeTitle = { exercises: 'Exercises', notes: 'Quick notes', cards: 'Flashcards' }[route.mode];
   const crumb = el('div', 'breadcrumb',
     sideToggle,
     button(book.title, 'book-open', () => openFile(book.index.path), 'crumb-book'),
-    chapter || modeTitle ? icon('chevron-right') : null,
-    chapter || modeTitle ? el('span', 'crumb-page', modeTitle || chapter.name) : null);
+    pageTitle || modeTitle ? icon('chevron-right') : null,
+    pageTitle || modeTitle ? el('span', 'crumb-page', modeTitle || pageTitle) : null);
   const tools = el('div', 'toolbar-actions');
   const explanation = el('div', 'explanation-anchor');
   for (const [glyph, label, mode] of [['clipboard-list', 'Exercises', 'exercises'], ['layers', 'Flashcards', 'cards'], ['notebook-pen', 'Quick notes', 'notes']]) {
@@ -372,7 +564,7 @@ async function render(keepScroll = false) {
     tools.append(control);
   }
   if (route.mode === 'read') {
-    const scope = chapter ? `${book.title} · ${chapter.name}` : `${book.title} · Introduction`;
+    const scope = `${book.title} · ${pageTitle || 'Introduction'}`;
     tools.append(
       iconButton('Explain with AI', 'message-circle-question-mark', () => ai.explain(explanation, stripFrontmatter(file.source), file.path, scope)),
       iconButton('Propose a patch', 'wand-sparkles', () => ai.proposePatch(file, scope)));
@@ -384,10 +576,12 @@ async function render(keepScroll = false) {
       }
       tools.append(iconButton('Quick capture', 'plus', () => capture(library, book, chapter, window.getSelection()?.toString() ?? '', refresh)));
     }
-    tools.append(iconButton('Edit Markdown', 'pencil', () => editFile(file, chapter ? 'Edit chapter' : 'Edit book introduction')));
+    tools.append(iconButton('Edit Markdown', 'pencil', () => editFile(file,
+      chapter ? 'Edit chapter' : pageTitle ? `Edit ${pageTitle}` : 'Edit book introduction')));
   }
+  tools.append(palette);
   const ctx = {
-    ...entry, library, plugin, progress, states, markdown, asset, openFile, openMode, jump, editFile,
+    ...entry, library, plugin, progress, states, markdown, asset, openFile, openMode, jump, openReference, editFile,
     changed: refresh, addChapter, ai, editBookNote: (name, title) => editBookNote(book, name, title),
   };
   const content = el('div', 'page');
@@ -398,7 +592,8 @@ async function render(keepScroll = false) {
   else if (chapter) {
     showChapter(content, chapter, ctx);
     showOutline(side, chapter, ctx);
-  } else showOverview(content, ctx);
+  } else if (pageTitle) showNote(content, file, pageTitle, markdown);
+  else showOverview(content, ctx);
   if (id !== renderId) return;
   toolbar.replaceChildren(crumb, tools);
   article.replaceChildren(explanation, content);
@@ -408,7 +603,7 @@ async function render(keepScroll = false) {
 
 function setup() {
   const search = button('', null, searchLibrary, 'library-search');
-  search.append(icon('search'), el('span', '', 'Search library'), el('kbd', '', shortcut));
+  search.append(icon('search'), el('span', '', 'Search library'), el('kbd', '', `${modifier} K`));
   const sidebar = el('aside', 'sidebar',
     el('div', 'sidebar-brand', icon('book-open'), el('span', '', 'Bücher')),
     search,
@@ -422,7 +617,7 @@ function setup() {
     min: 215, max: 440, fraction: .37, edge: 'right' });
   panelResize(readingLayout, readerSide, { name: 'Resize reader tools', property: 'reader-width', width: 320,
     min: 185, max: 540, fraction: .44, edge: 'left' });
-  shell.append(sidebar, el('section', 'workspace', toolbar, readingLayout));
+  shell.append(sidebar, el('section', 'workspace', toolbar, jumpBar, readerStage));
   root.replaceChildren(shell);
 }
 
@@ -439,7 +634,11 @@ document.addEventListener('click', event => {
   event.preventDefault();
   if (link.hasAttribute('data-external')) openUrl(link.href).catch(report);
   else if (link.dataset.file) {
-    if (link.dataset.file === route.path && route.mode === 'read') jump(link.dataset.fragment);
+    if (referencePane.contains(link)) {
+      showReference(link.dataset.file, link.dataset.fragment);
+      referenceScroll.focus({ preventScroll: true });
+    }
+    else if (readingLayout.contains(link)) openReference(link.dataset.file, link.dataset.fragment, link).catch(report);
     else {
       link.closest('dialog')?.close();
       openFile(link.dataset.file, link.dataset.fragment).catch(report);
@@ -448,7 +647,12 @@ document.addEventListener('click', event => {
 });
 
 document.addEventListener('keydown', event => {
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) {
+  if (!(event.metaKey || event.ctrlKey) || event.defaultPrevented || document.querySelector('dialog[open]')) return;
+  const key = event.key.toLowerCase();
+  if (key === 'p' && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    openCommandPalette();
+  } else if (key === 'k') {
     event.preventDefault();
     searchLibrary();
   }

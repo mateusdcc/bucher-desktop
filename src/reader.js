@@ -44,6 +44,20 @@ function content(source, title) {
   return first?.[1].trim().toLowerCase() === title.toLowerCase() ? source.slice(first[0].length).trim() : source;
 }
 
+export function showNote(host, file, title, markdown) {
+  const body = markdown(content(stripFrontmatter(file.source), title), file.path);
+  for (const paragraph of body.querySelectorAll(':scope > p')) {
+    if (paragraph.childElementCount) continue;
+    const anchor = /^\^([\w-]+)$/.exec(paragraph.textContent);
+    if (!anchor) continue;
+    const marker = el('span', 'note-anchor');
+    marker.id = '^' + anchor[1];
+    body.insertBefore(marker, paragraph.previousElementSibling ?? paragraph);
+    paragraph.remove();
+  }
+  host.append(el('h1', 'page-title', title), body);
+}
+
 export function showOverview(host, ctx) {
   const { model, book, records, markdown, openFile, openMode } = ctx;
   const counts = countsFor(model, records);
@@ -87,7 +101,7 @@ function prerequisites(targets, ctx) {
   if (!links.length) return null;
   const section = el('details', 'prerequisites', el('summary', '', 'Prerequisites'));
   section.append(el('div', 'prerequisite-links', links.map(target =>
-    button(target.title ?? target.name, 'arrow-up-right', () => ctx.openFile(target.path, target.id ?? ''), 'quiet-link'))));
+    button(target.title ?? target.name, 'arrow-up-right', event => ctx.openReference(target.path, target.id ?? '', event.currentTarget), 'quiet-link'))));
   if (targets.includes(null)) section.append(el('span', 'muted', 'Some prerequisites could not be found.'));
   return section;
 }
@@ -98,16 +112,18 @@ function callout(unit, chapter, ctx) {
   const block = el('section', `callout ${kind === 'exercise' ? 'exercise' : ''}`);
   block.id = unit.anchor ? '^' + unit.anchor : unit.node?.id || headingId(title);
   const row = el('div', 'callout-kind', icon(calloutIcons[kind] || 'quote'), labelFor(kind));
-  if (languageBlocks.has(kind) && bookLanguage(ctx.library.app, ctx.book).speechLang) {
+  if (!ctx.referenceOnly && languageBlocks.has(kind) && bookLanguage(ctx.library.app, ctx.book).speechLang) {
     row.append(iconButton('Pronounce', 'volume-2', () => speakText(calloutBody(unit) || title, bookLanguage(ctx.library.app, ctx.book).speechLang)));
   }
   block.append(row, el('h2', 'callout-title', title));
   const body = unit.callout ? calloutBody(unit) : '';
   if (body.trim()) {
-    const explanation = el('div', 'explanation-anchor');
-    row.append(iconButton('Explain ' + title + ' with AI', 'message-circle-question-mark',
-      () => ctx.ai.explain(explanation, title + '\n\n' + body, chapter.path, title)));
-    block.prepend(explanation);
+    if (!ctx.referenceOnly) {
+      const explanation = el('div', 'explanation-anchor');
+      row.append(iconButton('Explain ' + title + ' with AI', 'message-circle-question-mark',
+        () => ctx.ai.explain(explanation, title + '\n\n' + body, chapter.path, title)));
+      block.prepend(explanation);
+    }
     block.append(ctx.markdown(body, chapter.path));
   }
   return block;
@@ -339,7 +355,7 @@ export function showChapter(host, chapter, ctx) {
     if (unit.type === 'heading' && unit.level === 1 && unit.title?.trim().toLowerCase() === chapter.name.toLowerCase()) continue;
     if (unit.type === 'solution') {
       if (unit.exercise?.unit === unit) chapterBody.append(callout({ title: unit.exercise.title }, chapter, ctx));
-      if (unit.exercise) chapterBody.append(exerciseTools(chapter, unit.exercise, ctx));
+      if (unit.exercise && !ctx.referenceOnly) chapterBody.append(exerciseTools(chapter, unit.exercise, ctx));
     } else if (unit.callout) {
       chapterBody.append(callout(unit, chapter, ctx));
     } else {
@@ -348,11 +364,12 @@ export function showChapter(host, chapter, ctx) {
       if (unit.node && !unit.anchor) body.id = unit.node.id;
       chapterBody.append(body);
     }
-    if (unit.node?.type === 'exercise' && !unit.node.solution) {
+    if (!ctx.referenceOnly && unit.node?.type === 'exercise' && !unit.node.solution) {
       chapterBody.append(exerciseTools(chapter, unit.node, ctx));
     }
   }
   host.append(chapterBody);
+  if (ctx.referenceOnly) return;
   const footer = el('div', 'chapter-footer',
     button(previous?.name || book.title, 'arrow-left', () => openFile(previous?.path ?? book.index.path), 'previous-chapter'),
     button(read ? 'Read' : 'Mark as read', read ? 'check' : 'circle-check',
@@ -402,7 +419,7 @@ export function showOutline(host, chapter, ctx) {
     host.append(el('h2', 'eyebrow', 'Prerequisites'));
     for (const target of dependencies) {
       host.append(button(target.title ?? target.name, 'arrow-up-right',
-        () => ctx.openFile(target.path, target.id ?? ''), 'outline-link'));
+        event => ctx.openReference(target.path, target.id ?? '', event.currentTarget), 'outline-link'));
     }
   }
 }
