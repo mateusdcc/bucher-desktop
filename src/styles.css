@@ -652,6 +652,29 @@ audio { width: 100%; margin-top: 10px; }
 .ducklab-table td { padding: 5px 12px; border-bottom: 1px solid #232623; color: #c9cbc4; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ducklab-table tbody tr:hover td { background: #1f221f; }
 
+/* ext-3d-spatial-lab */
+.spatial-description { margin-bottom: 10px; font-size: 13.5px; }
+.spatial-description > :first-child { margin-top: 0; }
+.spatial-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.spatial-morph { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 240px; }
+.spatial-morph input { flex: 1; accent-color: var(--accent); }
+.spatial-t { font-size: 12px; min-width: 70px; font-variant-numeric: tabular-nums; }
+.spatial-hint { font-size: 12px; margin-left: auto; }
+.spatial-canvas { height: 420px; border: 1px solid #2c312c; background: #161816; position: relative; }
+.spatial-canvas canvas { touch-action: none; }
+.spatial-axis-label { font-size: 13px; font-style: italic; font-family: Spectral, serif; font-weight: 600; pointer-events: none; }
+.spatial-label { font-size: 11.5px; color: #deded9; background: #1b1d1bdd; border: 1px solid #2c312c; padding: 1px 6px; border-radius: 4px; white-space: nowrap; pointer-events: none; }
+.spatial-challenge { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 12.5px; }
+.spatial-challenge .pass { color: #73d695; }
+.spatial-challenge .fail { color: #e8927c; }
+.spatial-challenge.passed { color: #73d695; }
+.spatial-sliders { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 18px; margin-top: 10px; }
+.spatial-param { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.spatial-param-name { min-width: 34px; color: var(--strong); font-style: italic; font-family: Spectral, serif; }
+.spatial-param input { flex: 1; accent-color: var(--accent); }
+.spatial-param-value { min-width: 48px; text-align: right; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.spatial-error { border: 1px solid #5a3a30; background: #2a1f1b; color: #e8927c; padding: 10px 12px; font-size: 12px; white-space: pre-wrap; }
+
 @media (max-width: 975px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }

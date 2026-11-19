@@ -548,6 +548,69 @@ expected:
 \`\`\`
 `;
 
+const spatialChapter = `---
+name: Spatial Lab
+order: 11
+---
+
+# Spatial Lab
+
+Find the matrix:
+
+\`\`\`ext-3d-spatial-lab
+id: spatial-find-matrix
+title: "Find the matrix A"
+mode: challenge
+kind: vectors
+description: Tune the entries of A until the transformed basis vectors land on the targets.
+vectors:
+  - { to: [1, 0, 0], label: e1, color: "#e88f9f" }
+  - { to: [0, 1, 0], label: e2, color: "#73d695" }
+transform:
+  label: A
+  matrix:
+    - [a, b, "0"]
+    - [c, d, "0"]
+    - ["0", "0", "1"]
+params:
+  - { name: a, min: -3, max: 3, step: 0.1, value: 1 }
+  - { name: b, min: -3, max: 3, step: 0.1, value: 0 }
+  - { name: c, min: -3, max: 3, step: 0.1, value: 0 }
+  - { name: d, min: -3, max: 3, step: 0.1, value: 1 }
+targets:
+  - { vector: 0, position: [2, 1, 0], tolerance: 0.15, label: "A·e1" }
+  - { vector: 1, position: [1, 2, 0], tolerance: 0.15, label: "A·e2" }
+\`\`\`
+
+Animated surface:
+
+\`\`\`ext-3d-spatial-lab
+id: spatial-ripple
+title: Ripple surface
+kind: surface
+surface:
+  expr: a * sin(x - t) * cos(y)
+  xRange: [-4, 4]
+  yRange: [-4, 4]
+  resolution: 32
+params:
+  - { name: a, min: 0.2, max: 2, step: 0.05, value: 1 }
+animate: { min: 0, max: 6.283185, speed: 2 }
+\`\`\`
+
+Geometric solids:
+
+\`\`\`ext-3d-spatial-lab
+id: spatial-solids
+title: Solid geometry
+kind: solids
+solids:
+  - { shape: box, position: [-2, 0, 0.5], size: [1, 1, 1], color: "#6fb7e8", label: cube }
+  - { shape: sphere, position: [0, 0, 0.8], size: [0.8, 0, 0], color: "#73d695", label: sphere }
+  - { shape: torus, position: [2, 0, 0.6], size: [0.7, 0.25, 0], color: "#e8d06f", label: torus }
+\`\`\`
+`;
+
 const fixtureEntries = [
   { path: 'Buches/Extension Lab/_index.md', source: labIndex },
   { path: 'Buches/Extension Lab/concepts/Diagrams.md', source: diagramsChapter },
@@ -560,9 +623,15 @@ const fixtureEntries = [
   { path: 'Buches/Extension Lab/concepts/Desmos Studio.md', source: desmosChapter },
   { path: 'Buches/Extension Lab/concepts/Polyglot Studio.md', source: polyglotChapter },
   { path: 'Buches/Extension Lab/concepts/DuckDB Lab.md', source: duckdbChapter },
+  { path: 'Buches/Extension Lab/concepts/Spatial Lab.md', source: spatialChapter },
 ];
 
-const browser = await chromium.launch(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' });
+const browser = await chromium.launch({
+  ...(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' }),
+  // Software WebGL (SwiftShader) for the 3D lab scenarios; recent Chromium
+  // gates it behind this flag, and without it GPU-process crashes can occur.
+  args: ['--enable-unsafe-swiftshader'],
+});
 
 const demo = 'demo/Buches';
 const demoEntries = await Promise.all((await readdir(demo, { recursive: true }))
@@ -1237,7 +1306,10 @@ const scenarios = {
     assert.equal(await fit.locator('.extension-badge').textContent(), 'Unsolved');
     assert.match(await fit.locator('.desmos-challenge').textContent(), /P1: Δ/);
     const setParam = (name, value) => fit.locator(`input[aria-label="Parameter ${name}"]`)
-      .evaluate((input, v) => { input.value = v; input.dispatchEvent(new Event('input', { bubbles: true })); }, value);
+      .evaluate((input, v) => {
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, v);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }, value);
     await setParam('m', '1');
     await setParam('b', '1');
     await fit.locator('.extension-badge[data-status="passed"]').waitFor();
@@ -1354,6 +1426,77 @@ const scenarios = {
     await challenge.locator('.ducklab-verdict.pass').waitFor({ timeout: 90000 });
     assert.equal(await challenge.locator('.extension-badge').textContent(), 'Passed');
     assert.match(await challenge.locator('.cm-content').textContent(), /GROUP BY region/);
+  },
+  async spatialLab(page) {
+    await openChapter(page, 'Spatial Lab');
+    const matrix = page.locator('.extension-frame[data-block-key="id:spatial-find-matrix"]');
+    await matrix.scrollIntoViewIfNeeded();
+    await matrix.locator('.spatial-canvas canvas').waitFor({ timeout: 60000 });
+    // Labels are WebGL sprites (no DOM); give the scene a moment to settle,
+    // then verify visually via screenshots. Functional checks use the DOM
+    // challenge chips, badges, and sliders below.
+    await page.waitForTimeout(1200);
+    assert.equal(await matrix.locator('.extension-badge').textContent(), 'Unsolved');
+    assert.match(await matrix.locator('.spatial-challenge').textContent(), /away/);
+    await shot(page, 'spatial-01-vectors');
+
+    // Morph slider interpolates without breaking the scene.
+    await matrix.locator('input[aria-label="Transformation morph"]').evaluate(input => {
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, '0.4');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.waitForTimeout(300);
+    assert.ok(await matrix.locator('.spatial-canvas canvas').isVisible());
+
+    // Solve: A = [[2,1],[1,2]] maps e1→(2,1,0), e2→(1,2,0).
+    // Prototype setter bypasses React's node-level value tracker so the
+    // dispatched input event registers as a real change.
+    const setParam = (name, value) => matrix.locator(`input[aria-label="Parameter ${name}"]`)
+      .evaluate((input, v) => {
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, v);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }, value);
+    await setParam('a', '2');
+    await setParam('b', '1');
+    await setParam('c', '1');
+    await setParam('d', '2');
+    await matrix.locator('.extension-badge[data-status="passed"]').waitFor({ timeout: 10000 });
+    assert.match(await matrix.locator('.spatial-challenge').textContent(), /✓ landed/);
+    // onComplete refreshes the reader; let the remounted scene render a frame.
+    await matrix.locator('.spatial-canvas canvas').waitFor({ timeout: 30000 });
+    await page.waitForTimeout(1200);
+    await shot(page, 'spatial-02-matrix-solved');
+
+    // Animated surface: play advances t, pause freezes it.
+    // (The matrix solve triggered a reader refresh — wait for the remount.)
+    const ripple = page.locator('.extension-frame[data-block-key="id:spatial-ripple"]');
+    await ripple.locator('.spatial-canvas canvas').waitFor({ timeout: 30000 });
+    await ripple.scrollIntoViewIfNeeded();
+    await ripple.getByRole('button', { name: 'Play', exact: true }).click();
+    await page.waitForTimeout(800);
+    const tText = await ripple.locator('.spatial-t').textContent();
+    assert.ok(Number(tText.replace('t = ', '')) > 0.5, `t should advance, got ${tText}`);
+    await ripple.getByRole('button', { name: 'Pause', exact: true }).click();
+    const frozen = await ripple.locator('.spatial-t').textContent();
+    await page.waitForTimeout(350);
+    assert.equal(await ripple.locator('.spatial-t').textContent(), frozen);
+    await shot(page, 'spatial-03-surface');
+
+    // Solids scene renders with labels.
+    const solids = page.locator('.extension-frame[data-block-key="id:spatial-solids"]');
+    await solids.locator('.spatial-canvas canvas').waitFor({ timeout: 30000 });
+    await solids.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(1200);
+    await shot(page, 'spatial-04-solids');
+
+    // Challenge progress survives reload.
+    await page.waitForTimeout(650);
+    await page.reload();
+    await page.locator('article h1.page-title', { hasText: 'Spatial Lab' }).waitFor();
+    await matrix.scrollIntoViewIfNeeded();
+    await matrix.locator('.spatial-canvas canvas').waitFor({ timeout: 60000 });
+    await matrix.locator('.extension-badge[data-status="passed"]').waitFor({ timeout: 15000 });
+    assert.equal(await matrix.locator('input[aria-label="Parameter a"]').inputValue(), '2');
   },
 };
 

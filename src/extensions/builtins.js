@@ -15,6 +15,7 @@ import { interactiveGraphExtension } from './interactive-graph.js';
 import { desmosLabExtension } from './desmos-lab.js';
 import { polyglotStudioExtension } from './polyglot-studio.js';
 import { sqlDuckdbLabExtension } from './sql-duckdb-lab.js';
+import { spatialLabExtension } from './spatial-lab.js';
 
 registry.register(mermaidExtension);
 registry.register(mathPlotExtension);
@@ -26,3 +27,4 @@ registry.register(interactiveGraphExtension);
 registry.register(desmosLabExtension);
 registry.register(polyglotStudioExtension);
 registry.register(sqlDuckdbLabExtension);
+registry.register(spatialLabExtension);

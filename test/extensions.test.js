@@ -440,6 +440,23 @@ test('duckdb-lab grader handles multiset, ordered, and tolerance comparisons', (
   assert.equal(sqlDuckdbLabExtension.validate({ ...base, mode: 'challenge', expected: { columns: ['a', 'b'], rows: [[1]] } }).ok, false);
 });
 
+test('spatial-lab schema enforces scene-kind and challenge invariants', () => {
+  const { spatialLabExtension } = require('../src/extensions/spatial-lab');
+  const vectors = { id: 's', kind: 'vectors', vectors: [{ to: [1, 0, 0] }, { to: [0, 1, 0] }] };
+  assert.equal(spatialLabExtension.validate(vectors).ok, true);
+  assert.equal(spatialLabExtension.validate({ id: 's', kind: 'vectors' }).ok, false);
+  assert.equal(spatialLabExtension.validate({ id: 's', kind: 'surface' }).ok, false);
+  assert.equal(spatialLabExtension.validate({ id: 's', kind: 'surface', surface: { expr: 'sin(x)*cos(y)' } }).ok, true);
+  assert.equal(spatialLabExtension.validate({ id: 's', kind: 'solids', solids: [{ shape: 'box' }] }).ok, true);
+  const transform = { ...vectors, transform: { matrix: [['a', '0', '0'], ['0', '1', '0'], ['0', '0', '1']] }, params: [{ name: 'a', min: -3, max: 3 }] };
+  assert.equal(spatialLabExtension.validate(transform).ok, true);
+  assert.equal(spatialLabExtension.validate({ ...transform, mode: 'challenge' }).ok, false);
+  const challenge = { ...transform, mode: 'challenge', targets: [{ vector: 0, position: [2, 0, 0] }] };
+  assert.equal(spatialLabExtension.validate(challenge).ok, true);
+  assert.equal(spatialLabExtension.validate({ ...challenge, targets: [{ vector: 9, position: [2, 0, 0] }] }).ok, false);
+  assert.equal(spatialLabExtension.validate({ ...vectors, params: [{ name: 'x', min: 0, max: 1 }] }).ok, false);
+});
+
 test('every built-in extension registers and its few-shot examples validate', () => {
   require('../src/extensions/builtins');
   const { registry } = require('../src/extensions/registry');
