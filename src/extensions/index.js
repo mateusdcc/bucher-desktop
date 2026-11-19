@@ -6,6 +6,7 @@
  * @module extensions/index
  */
 export { ExtensionRegistry, registry } from './registry.js';
+export { dependencyManifestSchema, manifestProblem, tauriDependencySchema, webPackageSchema } from './dependencies.js';
 export { createValidator, formatIssues, jsonSchemaFor, blockMeta } from './validate.js';
 export { blockKey, extensionIdFromInfo, fenceBody, fenceInfo, isExtensionInfo, payloadId, payloadTitle } from './keys.js';
 export { mountGuarded, renderDisabledCard, renderErrorFallback, renderUnknownCard, renderValidationFallback, showSource } from './boundary.js';

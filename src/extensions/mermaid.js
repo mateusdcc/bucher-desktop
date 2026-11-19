@@ -109,6 +109,11 @@ diagram: |
       },
     ],
   },
+  dependencies: {
+    webPackages: [
+      { name: 'mermaid', version: '^11.17.2', purpose: 'Parses Mermaid grammars and renders sanitized SVG diagrams.', lazyLoad: true },
+    ],
+  },
   schema,
   validate: createValidator(schema),
   mount(host, props) {

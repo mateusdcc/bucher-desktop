@@ -147,6 +147,16 @@ tests:
       },
     ],
   },
+  dependencies: {
+    webPackages: [
+      { name: '@codemirror/commands', version: '^6.11.1', purpose: 'Editor keymaps and history.' },
+      { name: '@codemirror/state', version: '^6.7.6', purpose: 'Editor state and compartments.' },
+      { name: '@codemirror/view', version: '^6.43.15', purpose: 'CodeMirror 6 editor surface.' },
+      { name: '@codemirror/lang-javascript', version: '^6.2.5', purpose: 'JavaScript syntax highlighting.' },
+      { name: '@codemirror/language', version: '^6.13.1', purpose: 'Highlight style infrastructure.' },
+      { name: '@lezer/highlight', version: '^1.2.5', purpose: 'Syntax highlight tags.' },
+    ],
+  },
   schema,
   validate: createValidator(schema),
   mount(host, props) {

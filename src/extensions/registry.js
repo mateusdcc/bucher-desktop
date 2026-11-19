@@ -6,10 +6,13 @@
  *
  * @module extensions/registry
  */
+import { manifestProblem } from './dependencies.js';
 
 /**
  * @typedef {import('./types').BucherExtension} BucherExtension
  * @typedef {import('./types').ExtensionCategory} ExtensionCategory
+ * @typedef {import('./dependencies.js').WebPackageDependency} WebPackageDependency
+ * @typedef {import('./dependencies.js').TauriDependency} TauriDependency
  */
 
 const STORAGE_KEY = 'bucher/extensions-disabled';
@@ -125,6 +128,44 @@ export class ExtensionRegistry {
     return () => this.listeners.delete(listener);
   }
 
+  /**
+   * Aggregate declared web packages across registered extensions, deduplicated
+   * by name with the list of extensions using each package.
+   *
+   * @returns {Array<WebPackageDependency & { usedBy: string[] }>}
+   */
+  webPackages() {
+    /** @type {Map<string, WebPackageDependency & { usedBy: string[] }>} */
+    const merged = new Map();
+    for (const extension of this.extensions.values()) {
+      for (const dep of extension.dependencies.webPackages) {
+        const existing = merged.get(dep.name);
+        if (existing) existing.usedBy.push(extension.id);
+        else merged.set(dep.name, { ...dep, usedBy: [extension.id] });
+      }
+    }
+    return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Aggregate declared native Tauri dependencies across registered extensions.
+   *
+   * @returns {Array<TauriDependency & { usedBy: string[] }>}
+   */
+  tauriDependencies() {
+    /** @type {Map<string, TauriDependency & { usedBy: string[] }>} */
+    const merged = new Map();
+    for (const extension of this.extensions.values()) {
+      for (const dep of extension.dependencies.tauriDependencies ?? []) {
+        const key = dep.type + ':' + dep.name;
+        const existing = merged.get(key);
+        if (existing) existing.usedBy.push(extension.id);
+        else merged.set(key, { ...dep, usedBy: [extension.id] });
+      }
+    }
+    return [...merged.values()];
+  }
+
   notify() {
     for (const listener of [...this.listeners]) listener(this);
   }
@@ -150,6 +191,8 @@ function contractProblem(extension) {
     || skill.fewShotExamples.some(example => !example || typeof example.title !== 'string' || typeof example.yaml !== 'string' || !example.yaml.trim())) {
     return 'skill.fewShotExamples needs at least one { title, yaml } example.';
   }
+  const manifestIssue = manifestProblem(extension.dependencies);
+  if (manifestIssue) return 'dependencies: ' + manifestIssue;
   if (!extension.schema || typeof extension.schema.safeParse !== 'function') return 'schema must be a zod schema.';
   if (typeof extension.validate !== 'function') return 'validate must be a function.';
   if (typeof extension.mount !== 'function') return 'mount must be a function.';

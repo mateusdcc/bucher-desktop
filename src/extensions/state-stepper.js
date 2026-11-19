@@ -174,6 +174,9 @@ steps:
       },
     ],
   },
+  dependencies: {
+    webPackages: [],
+  },
   schema,
   validate: createValidator(schema),
   mount(host, props) {

@@ -30,6 +30,7 @@ function fakeExtension(overrides = {}) {
       syntaxSpec: 'value: <number>',
       fewShotExamples: [{ title: 'Example', yaml: 'value: 1' }],
     },
+    dependencies: { webPackages: [] },
     schema,
     validate: createValidator(schema),
     mount: () => ({ destroy() {} }),
@@ -46,6 +47,9 @@ test('registry enforces the extension contract and rejects duplicates', () => {
   assert.throws(() => registry.register(fakeExtension({ id: 'ext-other', skill: { instructions: '', syntaxSpec: 'x', fewShotExamples: [] } })), /instructions/);
   assert.throws(() => registry.register(fakeExtension({ id: 'ext-other', skill: { instructions: 'x', syntaxSpec: 'x', fewShotExamples: [{ title: 't', yaml: ' ' }] } })), /fewShotExamples/);
   assert.throws(() => registry.register(fakeExtension({ id: 'ext-other', mount: null })), /mount/);
+  assert.throws(() => registry.register(fakeExtension({ id: 'ext-other', dependencies: undefined })), /dependencies/);
+  assert.throws(() => registry.register(fakeExtension({ id: 'ext-other', dependencies: { webPackages: [{ name: 'x', version: '1', purpose: 'p', lazyLoad: 'yes' }] } })), /dependencies/);
+  assert.throws(() => registry.register(fakeExtension({ id: 'ext-other', dependencies: { webPackages: [], tauriDependencies: [{ type: 'magic', name: 'n', fallbackBehavior: 'degrade-gracefully', purpose: 'p' }] } })), /dependencies/);
   assert.equal(registry.list().length, 1);
 });
 
@@ -290,6 +294,32 @@ test('sql-lab row grading compares multisets unless order is required', () => {
   assert.equal(rowsMatch([expected[0], expected[0]], expected, false), false);
   assert.equal(rowsMatch([{ year: 1965, title: 'Dune' }, { title: 'Foundation', year: 1951 }], expected, false), true);
   assert.equal(rowsMatch([{ title: 'Dune' }, { title: 'Foundation' }], expected, false), false);
+});
+
+test('dependency manifests aggregate and match the installed package.json', () => {
+  require('../src/extensions/builtins');
+  const { registry } = require('../src/extensions/registry');
+  const { manifestProblem } = require('../src/extensions/dependencies');
+  const pkg = require('../package.json');
+  assert.equal(manifestProblem({ webPackages: [] }), null);
+  assert.ok(manifestProblem({ webPackages: [{ name: 'x' }] }));
+  assert.ok(manifestProblem(null));
+  for (const extension of registry.list()) {
+    assert.equal(manifestProblem(extension.dependencies), null, `${extension.id} manifest`);
+    for (const dep of extension.dependencies.webPackages) {
+      const installed = pkg.dependencies[dep.name] ?? pkg.devDependencies[dep.name];
+      assert.ok(installed, `${extension.id} declares uninstalled package ${dep.name}`);
+      assert.equal(dep.version, installed, `${extension.id} version drift for ${dep.name}`);
+      assert.ok(dep.purpose.length > 10, `${dep.name} needs a real purpose`);
+    }
+  }
+  const packages = registry.webPackages();
+  const mermaid = packages.find(entry => entry.name === 'mermaid');
+  assert.deepEqual(mermaid.usedBy, ['ext-mermaid']);
+  assert.equal(mermaid.lazyLoad, true);
+  const cmView = packages.find(entry => entry.name === '@codemirror/view');
+  assert.deepEqual(cmView.usedBy.sort(), ['ext-code-lab', 'ext-sql-lab']);
+  assert.deepEqual(registry.tauriDependencies(), []);
 });
 
 test('every built-in extension registers and its few-shot examples validate', () => {

@@ -76,6 +76,7 @@
  * @property {ExtensionCategory} category
  * @property {string} icon               Lucide icon name.
  * @property {ExtensionSkill} skill
+ * @property {import('./dependencies.js').ExtensionDependencyManifest} dependencies
  * @property {import('zod').ZodType} schema
  * @property {(data: unknown) => ValidationResult} validate
  * @property {(host: HTMLElement, props: MountProps) => MountedExtension} mount
