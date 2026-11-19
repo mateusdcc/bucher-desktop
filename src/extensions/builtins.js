@@ -6,5 +6,7 @@
  */
 import { registry } from './registry.js';
 import { mermaidExtension } from './mermaid.js';
+import { mathPlotExtension } from './math-plot.js';
 
 registry.register(mermaidExtension);
+registry.register(mathPlotExtension);

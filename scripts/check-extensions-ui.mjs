@@ -47,9 +47,53 @@ caption: missing diagram field
 \`\`\`
 `;
 
+const plotsChapter = `---
+name: Plots
+order: 2
+---
+
+# Plots
+
+A quadratic family with live sliders:
+
+\`\`\`ext-math-plot
+id: quadratic-1
+title: Quadratic family
+xRange: [-6, 6]
+functions:
+  - expr: a*x^2 + b*x + c
+    label: f(x)
+params:
+  - name: a
+    min: -3
+    max: 3
+    step: 0.1
+    value: 1
+  - name: b
+    min: -5
+    max: 5
+    step: 0.1
+    value: 0
+  - name: c
+    min: -5
+    max: 5
+    step: 0.1
+    value: 0
+\`\`\`
+
+An expression referencing an undeclared symbol must fail gracefully:
+
+\`\`\`ext-math-plot
+id: bad-plot
+functions:
+  - expr: mystery*x
+\`\`\`
+`;
+
 const fixtureEntries = [
   { path: 'Buches/Extension Lab/_index.md', source: labIndex },
   { path: 'Buches/Extension Lab/concepts/Diagrams.md', source: diagramsChapter },
+  { path: 'Buches/Extension Lab/concepts/Plots.md', source: plotsChapter },
 ];
 
 const browser = await chromium.launch(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' });
@@ -169,12 +213,14 @@ const scenarios = {
     const toggle = page.getByRole('switch', { name: 'Disable Mermaid Diagram' });
     await toggle.click();
     await page.getByRole('switch', { name: 'Enable Mermaid Diagram' }).waitFor();
-    await button(page, 'View AI skill').click();
+    await page.locator('.extension-manager-card', { hasText: 'Mermaid Diagram' }).getByRole('button', { name: 'View AI skill' }).click();
     await page.getByRole('dialog', { name: 'AI skill · Mermaid Diagram' }).waitFor();
     assert.ok(await page.getByRole('dialog').textContent().then(text => text.includes('sequenceDiagram')));
     await page.keyboard.press('Escape');
     await button(page, 'View composed AI prompt').click();
-    assert.ok(await page.getByRole('dialog').textContent().then(text => text.includes('No extensions are enabled.')));
+    const composed = await page.getByRole('dialog').textContent();
+    assert.ok(!composed.includes('ext-mermaid'), 'disabled extension must leave the composed prompt');
+    assert.ok(composed.includes('ext-math-plot'), 'enabled extensions stay in the composed prompt');
     await page.keyboard.press('Escape');
     await button(page, 'Back to reader').click();
     await page.locator('.extension-disabled-card', { hasText: 'Mermaid Diagram' }).first().waitFor();
@@ -183,6 +229,48 @@ const scenarios = {
     await page.locator('.extension-disabled-card').first().getByRole('button', { name: 'Enable extension' }).click();
     await frame.locator('.mermaid-stage svg').waitFor({ timeout: 20000 });
     await shot(page, 'mermaid-04-reenabled');
+  },
+  async mathPlot(page) {
+    await openChapter(page, 'Plots');
+    const frame = page.locator('.extension-frame[data-extension="ext-math-plot"][data-block-key="id:quadratic-1"]');
+    await frame.locator('canvas').waitFor();
+    await page.waitForTimeout(300);
+    const before = await frame.locator('canvas').evaluate(node => node.toDataURL());
+    assert.ok(before.length > 5000, 'canvas should contain a rendered plot');
+    await shot(page, 'plot-01-default');
+
+    // Move slider a and confirm the curve redraws and the value label updates.
+    const slider = frame.getByLabel('Parameter a');
+    await slider.evaluate(node => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(node, '2.5');
+      node.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    assert.equal(await frame.locator('.plot-param-value').first().textContent(), '2.5');
+    const after = await frame.locator('canvas').evaluate(node => node.toDataURL());
+    assert.notEqual(before, after);
+    await shot(page, 'plot-02-slider');
+
+    // Persistence across reload.
+    await page.waitForTimeout(650);
+    assert.match(await storedProgress(page), /quadratic-1/);
+    await page.reload();
+    await page.locator('article h1.page-title', { hasText: 'Plots' }).waitFor();
+    await frame.locator('canvas').waitFor();
+    assert.equal(await frame.getByLabel('Parameter a').inputValue(), '2.5');
+
+    // Hover readout.
+    const box = await frame.locator('canvas').boundingBox();
+    assert.ok(box);
+    await page.mouse.move(box.x + box.width * 0.7, box.y + box.height / 2);
+    await frame.locator('.plot-readout').waitFor();
+    assert.match(await frame.locator('.plot-readout').textContent(), /x = /);
+
+    // Undeclared symbol → error fallback card, not a crash.
+    await page.locator('.extension-fallback', { hasText: 'could not render' }).waitFor();
+    assert.ok(await page.locator('.extension-fallback', { hasText: 'could not render' }).textContent()
+      .then(text => text.includes('mystery')));
+    await shot(page, 'plot-03-error-fallback');
   },
 };
 

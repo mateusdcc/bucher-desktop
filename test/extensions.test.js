@@ -194,6 +194,29 @@ test('exercise fences become exercise nodes and extension state persists in _pro
   assert.deepEqual(await progress.readExtensions(book), {});
 });
 
+test('expression engine parses, evaluates, and rejects safely', () => {
+  const { compileExpression, parseExpression, freeSymbols } = require('../src/extensions/lib/expression');
+  const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} ≈ ${expected}`);
+  const scope = { x: 3, a: 2, b: -1, t: 0 };
+  close(compileExpression('a*x^2 + b*x + 1', ['x', 'a', 'b'])(scope), 16);
+  close(compileExpression('2x + 3(x - 1)', ['x'])(scope), 12);
+  close(compileExpression('-x^2', ['x'])(scope), -9);
+  close(compileExpression('2^3^2', [])(scope), 512);
+  close(compileExpression('sin(pi/2) + cos(0)', [])(scope), 2);
+  close(compileExpression('sqrt(abs(-16)) + log10(1000)', [])(scope), 7);
+  close(compileExpression('min(2, 5) + max(1, 3) + pow(2, 4)', [])(scope), 21);
+  close(compileExpression('a(x + 1)', ['x', 'a'])(scope), 8);
+  close(compileExpression('(x + 1)(x - 1)', ['x'])(scope), 8);
+  close(compileExpression('1e-3 * 1000', [])(scope), 1);
+  assert.throws(() => compileExpression('y + 1', ['x']), /Unknown symbol/);
+  assert.throws(() => compileExpression('2 +', []), /Unexpected end/);
+  assert.throws(() => compileExpression('foo(x)', ['x']), /Unknown symbol “foo”/);
+  assert.throws(() => compileExpression('min(1)', []), /expects 2/);
+  assert.throws(() => compileExpression('x @ 2', ['x']), /Unexpected character/);
+  assert.throws(() => compileExpression('x)(', ['x']), /trailing input/);
+  assert.deepEqual([...freeSymbols(parseExpression('a*x + sin(t)'))].sort(), ['a', 't', 'x']);
+});
+
 test('every built-in extension registers and its few-shot examples validate', () => {
   require('../src/extensions/builtins');
   const { registry } = require('../src/extensions/registry');
