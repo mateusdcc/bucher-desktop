@@ -12,6 +12,18 @@ await mkdir('dist/pyodide', { recursive: true });
 for (const asset of pyodideAssets) {
   await copyFile(`node_modules/pyodide/${asset}`, `dist/pyodide/${asset}`);
 }
+
+// DuckDB-WASM is self-hosted too. Ship eh + mvp (selectBundle picks at runtime
+// by feature detection); coi needs cross-origin isolation headers we don't set.
+// Only the selected variant is fetched, and only when a SQL block mounts.
+const duckdbAssets = [
+  'duckdb-eh.wasm', 'duckdb-mvp.wasm',
+  'duckdb-browser-eh.worker.js', 'duckdb-browser-mvp.worker.js',
+];
+await mkdir('dist/duckdb', { recursive: true });
+for (const asset of duckdbAssets) {
+  await copyFile(`node_modules/@duckdb/duckdb-wasm/dist/${asset}`, `dist/duckdb/${asset}`);
+}
 const options = {
   entryPoints: ['src/app.js'],
   bundle: true,
