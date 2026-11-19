@@ -255,8 +255,8 @@ function mountBlock(placeholder, ctx, id, occurrence) {
   }, 'extension-collapse');
   collapse.setAttribute('aria-expanded', String(!collapsed.has(frameKey)));
   collapse.append(icon(collapsed.has(frameKey) ? 'chevron-right' : 'chevron-down'),
-    icon(extension.icon), el('span', 'extension-name', extension.name),
-    title ? el('span', 'extension-title', title) : null);
+    icon(extension.icon), el('span', 'extension-name', extension.name));
+  if (title) collapse.append(el('span', 'extension-title', title));
   const tools = el('div', 'extension-frame-tools',
     iconButton('Reset state', 'rotate-ccw', () => {
       flush();

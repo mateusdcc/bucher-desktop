@@ -2,6 +2,9 @@ import '@fontsource-variable/inter';
 import '@fontsource/spectral/latin-400.css';
 import '@fontsource/spectral/latin-600.css';
 import 'katex/dist/katex.css';
+// React Flow styles must live in the entry stylesheet: esbuild does not load
+// CSS emitted for dynamically-imported chunks (the graph view is lazy).
+import '@xyflow/react/dist/style.css';
 import './styles.css';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';

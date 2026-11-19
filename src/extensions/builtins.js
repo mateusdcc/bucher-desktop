@@ -11,6 +11,7 @@ import { stateStepperExtension } from './state-stepper.js';
 import { codeLabExtension } from './code-lab/code-lab.js';
 import { parsonsExtension } from './parsons-puzzle.js';
 import { sqlLabExtension } from './sql-lab.js';
+import { interactiveGraphExtension } from './interactive-graph.js';
 
 registry.register(mermaidExtension);
 registry.register(mathPlotExtension);
@@ -18,3 +19,4 @@ registry.register(stateStepperExtension);
 registry.register(codeLabExtension);
 registry.register(parsonsExtension);
 registry.register(sqlLabExtension);
+registry.register(interactiveGraphExtension);

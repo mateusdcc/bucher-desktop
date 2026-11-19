@@ -367,6 +367,29 @@ test('runtime tracker caches loaders and reports cold/loading/warm/error', async
   unsubscribe();
 });
 
+test('interactive-graph schema enforces graph and exercise invariants', () => {
+  const { interactiveGraphExtension } = require('../src/extensions/interactive-graph');
+  const base = {
+    id: 'g', nodes: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }],
+    edges: [{ from: 'a', to: 'b' }],
+  };
+  assert.equal(interactiveGraphExtension.validate(base).ok, true);
+  assert.equal(interactiveGraphExtension.validate({ ...base, edges: [{ from: 'a', to: 'ghost' }] }).ok, false);
+  assert.equal(interactiveGraphExtension.validate({ ...base, mode: 'exercise' }).ok, false);
+  const wire = { ...base, mode: 'exercise', exercise: { type: 'wire-edges', hiddenEdges: [{ from: 'a', to: 'b' }] } };
+  assert.equal(interactiveGraphExtension.validate(wire).ok, true);
+  const badWire = { ...base, mode: 'exercise', exercise: { type: 'wire-edges', hiddenEdges: [{ from: 'b', to: 'a' }] } };
+  assert.equal(interactiveGraphExtension.validate(badWire).ok, false);
+  const classify = { ...base, mode: 'exercise', exercise: { type: 'classify-nodes' } };
+  assert.equal(interactiveGraphExtension.validate(classify).ok, false);
+  const classifyOk = {
+    ...base, mode: 'exercise',
+    nodes: [{ id: 'a', label: 'A', kind: 'definition' }, { id: 'b', label: 'B', kind: 'theorem' }],
+    exercise: { type: 'classify-nodes', extraKinds: ['lemma'] },
+  };
+  assert.equal(interactiveGraphExtension.validate(classifyOk).ok, true);
+});
+
 test('every built-in extension registers and its few-shot examples validate', () => {
   require('../src/extensions/builtins');
   const { registry } = require('../src/extensions/registry');

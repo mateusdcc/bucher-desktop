@@ -280,6 +280,81 @@ expected:
 \`\`\`
 `;
 
+const graphsChapter = `---
+name: Graphs
+order: 7
+---
+
+# Graphs
+
+Explore the proof map:
+
+\`\`\`ext-interactive-graph
+id: graph-explore
+title: Proof map
+mode: explore
+layout: TB
+nodes:
+  - id: def-even
+    label: "Definition: even"
+    kind: definition
+    note: An integer is even when it equals 2k.
+  - id: closure
+    label: "Closure under +"
+    kind: lemma
+    note: The sum of two integers is an integer.
+  - id: sum-even
+    label: "Sum of evens is even"
+    kind: theorem
+    note: Factor 2a + 2b as 2(a+b).
+edges:
+  - { from: def-even, to: sum-even, label: unfolds }
+  - { from: closure, to: sum-even, label: justifies }
+\`\`\`
+
+Wire the missing links:
+
+\`\`\`ext-interactive-graph
+id: graph-wire
+title: Wire the pipeline
+mode: exercise
+layout: LR
+nodes:
+  - { id: src, label: Source, kind: concept }
+  - { id: lex, label: Lexer, kind: step }
+  - { id: parse, label: Parser, kind: step }
+  - { id: codegen, label: Codegen, kind: step }
+edges:
+  - { from: src, to: lex }
+  - { from: lex, to: parse }
+  - { from: parse, to: codegen }
+exercise:
+  type: wire-edges
+  hiddenEdges:
+    - { from: lex, to: parse }
+    - { from: parse, to: codegen }
+\`\`\`
+
+Classify the nodes:
+
+\`\`\`ext-interactive-graph
+id: graph-classify
+title: Classify the proof steps
+mode: exercise
+layout: TB
+nodes:
+  - { id: n1, label: "Even means 2k", kind: definition }
+  - { id: n2, label: "Sum of integers is integer", kind: lemma }
+  - { id: n3, label: "Sum of evens is even", kind: theorem }
+edges:
+  - { from: n1, to: n3 }
+  - { from: n2, to: n3 }
+exercise:
+  type: classify-nodes
+  extraKinds: [claim]
+\`\`\`
+`;
+
 const fixtureEntries = [
   { path: 'Buches/Extension Lab/_index.md', source: labIndex },
   { path: 'Buches/Extension Lab/concepts/Diagrams.md', source: diagramsChapter },
@@ -288,6 +363,7 @@ const fixtureEntries = [
   { path: 'Buches/Extension Lab/concepts/Code Lab.md', source: codeLabChapter },
   { path: 'Buches/Extension Lab/concepts/Parsons.md', source: parsonsChapter },
   { path: 'Buches/Extension Lab/concepts/SQL Lab.md', source: sqlLabChapter },
+  { path: 'Buches/Extension Lab/concepts/Graphs.md', source: graphsChapter },
 ];
 
 const browser = await chromium.launch(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' });
@@ -837,6 +913,77 @@ const scenarios = {
     await labDialog.waitFor();
     assert.equal(await labDialog.locator('.extension-dep-row', { hasText: '@codemirror/view' }).locator('.extension-dep-badge').textContent(), 'bundled');
     await page.keyboard.press('Escape');
+  },
+  async interactiveGraph(page) {
+    await openChapter(page, 'Graphs');
+    const explore = page.locator('.extension-frame[data-block-key="id:graph-explore"]');
+    await explore.locator('.react-flow__node').first().waitFor({ timeout: 30000 });
+    assert.equal(await explore.locator('.react-flow__node').count(), 3);
+    await shot(page, 'graph-01-explore');
+
+    // Click a node to inspect its note, then trace downstream.
+    await explore.locator('.react-flow__node[data-id="def-even"]').click();
+    await explore.locator('.igraph-inspector').waitFor();
+    assert.match(await explore.locator('.igraph-note').textContent(), /even when it equals 2k/);
+    await explore.getByRole('button', { name: 'Trace dependencies' }).click();
+    await explore.locator('.react-flow__edge.animated').first().waitFor({ timeout: 5000 });
+    await shot(page, 'graph-02-trace');
+
+    // Wire exercise: a wrong link is rejected, correct links complete it.
+    const wire = page.locator('.extension-frame[data-block-key="id:graph-wire"]');
+    await wire.scrollIntoViewIfNeeded();
+    await wire.locator('.react-flow__node').first().waitFor();
+    assert.equal(await wire.locator('.react-flow__edge').count(), 1);
+    const drag = async (fromId, toId) => {
+      const source = wire.locator(`.react-flow__node[data-id="${fromId}"] .react-flow__handle-right`);
+      const target = wire.locator(`.react-flow__node[data-id="${toId}"] .react-flow__handle-left`);
+      const a = await source.boundingBox();
+      const b = await target.boundingBox();
+      assert.ok(a && b);
+      await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 10 });
+      await page.mouse.up();
+    };
+    await drag('src', 'codegen');
+    await wire.locator('.igraph-message', { hasText: 'Not a valid dependency' }).waitFor();
+    await drag('lex', 'parse');
+    await wire.locator('.igraph-message', { hasText: 'Correct link! 1 of 2' }).waitFor();
+    await drag('parse', 'codegen');
+    await wire.locator('.extension-badge[data-status="passed"]').waitFor();
+    // onComplete remounts the frame with persisted state; wait for the rebuild.
+    // Edges are horizontal (zero-height) paths, so poll the count, not visibility.
+    await page.waitForFunction(() => document.querySelectorAll(
+      '.extension-frame[data-block-key="id:graph-wire"] .react-flow__edge').length === 3, null, { timeout: 10000 });
+    assert.equal(await wire.locator('.react-flow__edge').count(), 3);
+    await shot(page, 'graph-03-wired');
+
+    // Classify exercise: assign kinds and check.
+    const classify = page.locator('.extension-frame[data-block-key="id:graph-classify"]');
+    await classify.scrollIntoViewIfNeeded();
+    await classify.locator('.igraph-kind-select').first().waitFor();
+    await classify.getByLabel('Classify Even means 2k').selectOption('definition');
+    await classify.getByLabel('Classify Sum of integers is integer').selectOption('lemma');
+    await classify.getByLabel('Classify Sum of evens is even').selectOption('theorem');
+    await classify.getByRole('button', { name: 'Check classification' }).click();
+    await classify.locator('.extension-badge[data-status="passed"]').waitFor();
+    await page.waitForFunction(() => {
+      const nodes = document.querySelectorAll('.extension-frame[data-block-key="id:graph-classify"] .igraph-node');
+      return nodes.length === 3 && [...nodes].every(node => node.style.borderColor === 'rgb(115, 214, 149)');
+    }, null, { timeout: 10000 });
+    await shot(page, 'graph-04-classified');
+
+    // Progress survives reload.
+    await page.waitForTimeout(650);
+    await page.reload();
+    await page.locator('article h1.page-title', { hasText: 'Graphs' }).waitFor();
+    await wire.scrollIntoViewIfNeeded();
+    await wire.locator('.react-flow__node').first().waitFor({ timeout: 30000 });
+    assert.equal(await wire.locator('.extension-badge').textContent(), 'Passed');
+    await page.waitForFunction(() => document.querySelectorAll(
+      '.extension-frame[data-block-key="id:graph-wire"] .react-flow__edge').length === 3, null, { timeout: 10000 });
+    assert.equal(await wire.locator('.react-flow__edge').count(), 3);
+    assert.equal(await classify.locator('.extension-badge').textContent(), 'Passed');
   },
 };
 
