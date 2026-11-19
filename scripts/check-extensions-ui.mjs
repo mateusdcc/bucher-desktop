@@ -158,11 +158,68 @@ steps:
 \`\`\`
 `;
 
+const codeLabChapter = `---
+name: Code Lab
+order: 4
+---
+
+# Code Lab
+
+Implement binary search:
+
+\`\`\`ext-code-lab
+id: lab-binary
+title: Binary search
+description: |
+  Return the index of \`target\` in the sorted array, or \`-1\`.
+starter: |
+  function binarySearch(a, target) {
+    // your code here
+  }
+tests:
+  - name: finds the middle
+    fn: binarySearch
+    args: [[1, 3, 5, 7, 9], 5]
+    expected: 2
+  - name: missing value
+    fn: binarySearch
+    args: [[1, 3, 5], 4]
+    expected: -1
+  - name: empty array
+    fn: binarySearch
+    args: [[], 1]
+    expected: -1
+  - name: single element hit
+    fn: binarySearch
+    args: [[42], 42]
+    expected: 0
+    hidden: true
+\`\`\`
+
+An infinite loop must be killed by the timeout:
+
+\`\`\`ext-code-lab
+id: lab-loop
+title: Runaway loop
+timeoutMs: 1000
+starter: |
+  function spin() {
+    while (true) {}
+  }
+tests:
+  - name: terminates
+    fn: spin
+    args: []
+    expected: null
+\`\`\`
+`;
+
 const fixtureEntries = [
   { path: 'Buches/Extension Lab/_index.md', source: labIndex },
   { path: 'Buches/Extension Lab/concepts/Diagrams.md', source: diagramsChapter },
   { path: 'Buches/Extension Lab/concepts/Plots.md', source: plotsChapter },
   { path: 'Buches/Extension Lab/concepts/Steppers.md', source: steppersChapter },
+  { path: 'Buches/Extension Lab/concepts/Code Lab.md', source: codeLabChapter },
 ];
 
 const browser = await chromium.launch(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' });
@@ -393,6 +450,56 @@ const scenarios = {
     await graph.getByRole('button', { name: 'Next step' }).click();
     assert.equal(await graph.locator('.stepper-node-label.active').textContent(), 'LISTEN');
     await shot(page, 'stepper-03-graph');
+  },
+  async codeLab(page) {
+    await openChapter(page, 'Code Lab');
+    const frame = page.locator('.extension-frame[data-extension="ext-code-lab"][data-block-key="id:lab-binary"]');
+    await frame.locator('.cm-content').waitFor();
+    assert.match(await frame.locator('.cm-content').textContent(), /function binarySearch/);
+    assert.equal(await frame.locator('.extension-badge').textContent(), 'Unsolved');
+    await shot(page, 'codelab-01-starter');
+
+    // Running the empty starter fails the tests and marks progress.
+    await frame.getByRole('button', { name: 'Run tests' }).click();
+    await frame.locator('.codelab-test').first().waitFor();
+    assert.equal(await frame.locator('.codelab-summary').textContent(), '0 / 4 tests passed');
+    assert.equal(await frame.locator('.extension-badge').textContent(), 'In Progress');
+    const hiddenRow = frame.locator('.codelab-test', { hasText: 'Hidden test 1' });
+    assert.equal(await hiddenRow.count(), 1);
+    assert.ok(!(await hiddenRow.textContent()).includes('single element'));
+    await shot(page, 'codelab-02-failing');
+
+    // Write a correct solution and run again.
+    const solution = 'function binarySearch(a, target) {\n  let lo = 0, hi = a.length - 1;\n  while (lo <= hi) {\n    const mid = (lo + hi) >> 1;\n    if (a[mid] === target) return mid;\n    if (a[mid] < target) lo = mid + 1;\n    else hi = mid - 1;\n  }\n  return -1;\n}';
+    await frame.locator('.cm-content').click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(solution);
+    await frame.getByRole('button', { name: 'Run tests' }).click();
+    await frame.locator('.codelab-test.pass').first().waitFor();
+    assert.equal(await frame.locator('.codelab-summary').textContent(), '4 / 4 tests passed');
+    await frame.locator('.extension-badge[data-status="passed"]').waitFor();
+    // Completion marked the book exercise solved (exerciseTools shows "Solved").
+    await page.getByRole('button', { name: 'Solved', exact: true }).first().waitFor();
+    assert.match(await storedProgress(page), /solved/);
+    await shot(page, 'codelab-03-passed');
+
+    // Code, results, and status survive a reload.
+    await page.waitForTimeout(650);
+    await page.reload();
+    await page.locator('article h1.page-title', { hasText: 'Code Lab' }).waitFor();
+    await frame.locator('.cm-content').waitFor();
+    assert.match(await frame.locator('.cm-content').textContent(), /while \(lo <= hi\)/);
+    assert.equal(await frame.locator('.codelab-summary').textContent(), '4 / 4 tests passed');
+    assert.equal(await frame.locator('.extension-badge').textContent(), 'Passed');
+
+    // The infinite-loop block is terminated by the timeout; the app stays live.
+    const loop = page.locator('.extension-frame[data-block-key="id:lab-loop"]');
+    await loop.getByRole('button', { name: 'Run tests' }).click();
+    await loop.locator('.codelab-test-detail', { hasText: 'timed out' }).waitFor({ timeout: 8000 });
+    assert.equal(await loop.locator('.extension-badge').textContent(), 'In Progress');
+    await shot(page, 'codelab-04-timeout');
+    await frame.getByRole('button', { name: 'Reset code' }).click();
+    assert.match(await frame.locator('.cm-content').textContent(), /your code here/);
   },
 };
 

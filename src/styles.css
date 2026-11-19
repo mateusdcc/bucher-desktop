@@ -443,6 +443,31 @@ audio { width: 100%; margin-top: 10px; }
 .stepper-explanation { color: var(--text); font-size: 13.5px; }
 .stepper-explanation .markdown > :first-child { margin-top: 0; }
 
+/* ext-code-lab */
+.codelab-description { margin-bottom: 10px; font-size: 13.5px; }
+.codelab-description .markdown > :first-child { margin-top: 0; }
+.codelab-editor .cm-editor { max-height: 340px; }
+.codelab-editor .cm-scroller { overflow: auto; }
+.codelab-controls { display: flex; align-items: center; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+.codelab-summary { font-size: 12px; margin-left: auto; }
+.codelab-results { display: flex; flex-direction: column; gap: 6px; }
+.codelab-test { border: 1px solid #2c312c; background: #191b19; padding: 7px 10px; }
+.codelab-test.pass { border-color: #2c4a35; }
+.codelab-test.fail { border-color: #4a3a33; }
+.codelab-test-head { display: flex; align-items: center; gap: 8px; }
+.codelab-test-head svg { width: 15px; height: 15px; }
+.codelab-test.pass .codelab-test-head svg { color: var(--accent); }
+.codelab-test.fail .codelab-test-head svg { color: #e8927c; }
+.codelab-test-name { font-size: 13px; color: var(--strong); }
+.codelab-test-time { margin-left: auto; color: var(--quiet); font-size: 11px; font-variant-numeric: tabular-nums; }
+.codelab-test-detail { margin: 6px 0 0; font: 12px/1.6 ui-monospace, monospace; color: #e8b9a8; white-space: pre-wrap; word-break: break-word; }
+.codelab-test-detail.muted { color: var(--muted); }
+.codelab-diff-label { display: inline-block; width: 74px; color: var(--quiet); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+.codelab-test-detail code { color: var(--strong); }
+.codelab-console-details { margin-top: 8px; }
+.codelab-console-details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.codelab-console { font: 12px/1.6 ui-monospace, monospace; background: #141614; padding: 9px 11px; margin-top: 6px; max-height: 180px; overflow: auto; white-space: pre-wrap; color: #cfd2c9; }
+
 @media (max-width: 975px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }

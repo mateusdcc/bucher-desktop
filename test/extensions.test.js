@@ -217,6 +217,69 @@ test('expression engine parses, evaluates, and rejects safely', () => {
   assert.deepEqual([...freeSymbols(parseExpression('a*x + sin(t)'))].sort(), ['a', 't', 'x']);
 });
 
+test('code-lab worker runs tests, captures console, and shadows dangerous globals', async () => {
+  const vm = require('node:vm');
+  const { readFileSync } = require('node:fs');
+  const source = readFileSync(require.resolve('../src/extensions/code-lab/worker.js'), 'utf8');
+  async function run(code, tests) {
+    const messages = [];
+    const sandbox = { self: { postMessage: message => messages.push(message) } };
+    vm.createContext(sandbox);
+    vm.runInContext(source, sandbox);
+    await sandbox.self.onmessage({ data: { code, tests } });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(messages.length, 1);
+    // Normalize cross-realm objects so deepStrictEqual compares prototypes fairly.
+    return JSON.parse(JSON.stringify(messages[0]));
+  }
+  const good = await run('function add(a, b) { return a + b; }', [
+    { name: 'sums', fn: 'add', args: [2, 3], expected: 5 },
+    { name: 'negatives', fn: 'add', args: [-2, -3], expected: -5, hidden: true },
+  ]);
+  assert.equal(good.type, 'result');
+  assert.deepEqual(good.results.map(result => result.pass), [true, true]);
+  assert.equal(good.results[1].hidden, true);
+
+  const bad = await run('function add(a, b) { return a - b; }', [
+    { name: 'sums', fn: 'add', args: [2, 3], expected: 5 },
+  ]);
+  assert.equal(bad.results[0].pass, false);
+  assert.equal(bad.results[0].actual, '-1');
+  assert.equal(bad.results[0].expected, '5');
+
+  const missing = await run('const x = 1;', [{ name: 't', fn: 'nope', args: [], expected: 1 }]);
+  assert.match(missing.results[0].error, /not defined/);
+
+  const syntax = await run('function broken( {', [{ name: 't', fn: 'broken', args: [], expected: 1 }]);
+  assert.equal(syntax.type, 'fatal');
+
+  const deep = await run('function pair(x) { return { list: [x, { ok: true }] }; }', [
+    { name: 'deep', fn: 'pair', args: [7], expected: { list: [7, { ok: true }] } },
+  ]);
+  assert.equal(deep.results[0].pass, true);
+
+  const logged = await run('function hello() { console.log("hi", 42); return 1; }', [
+    { name: 't', fn: 'hello', args: [], expected: 1 },
+  ]);
+  assert.deepEqual(logged.logs, [{ level: 'log', text: '"hi" 42' }]);
+
+  const isolated = await run('function probe() { return [typeof fetch, typeof window, typeof importScripts]; }', [
+    { name: 'isolated', fn: 'probe', args: [], expected: ['undefined', 'undefined', 'undefined'] },
+  ]);
+  assert.equal(isolated.results[0].pass, true);
+
+  const asyncFn = await run('async function twice(x) { return x * 2; }', [
+    { name: 'async', fn: 'twice', args: [4], expected: 8 },
+  ]);
+  assert.equal(asyncFn.results[0].pass, true);
+
+  const injected = await run('function x() { return 1; }', [
+    { name: 'evil', fn: 'x; process.exit(1)', args: [], expected: 1 },
+  ]);
+  assert.equal(injected.type, 'fatal');
+  assert.match(injected.error, /invalid function name/);
+});
+
 test('every built-in extension registers and its few-shot examples validate', () => {
   require('../src/extensions/builtins');
   const { registry } = require('../src/extensions/registry');
