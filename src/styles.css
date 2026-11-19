@@ -468,6 +468,31 @@ audio { width: 100%; margin-top: 10px; }
 .codelab-console-details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .codelab-console { font: 12px/1.6 ui-monospace, monospace; background: #141614; padding: 9px 11px; margin-top: 6px; max-height: 180px; overflow: auto; white-space: pre-wrap; color: #cfd2c9; }
 
+/* ext-parsons-puzzle */
+.parsons-prompt { margin-bottom: 10px; font-size: 13.5px; }
+.parsons-prompt .markdown > :first-child { margin-top: 0; }
+.parsons-pools { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .parsons-pools { grid-template-columns: 1fr; } }
+.parsons-pool-title { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--quiet); margin-bottom: 6px; }
+.parsons-tray, .parsons-answer { display: flex; flex-direction: column; gap: 5px; min-height: 120px; border: 1px dashed #353b36; padding: 8px; background: #161816; }
+.parsons-answer { border-style: solid; }
+.parsons-tray.drop-target, .parsons-answer.drop-target { border-color: var(--accent); }
+.parsons-empty { font-size: 12px; padding: 6px; }
+.parsons-line { display: flex; align-items: center; gap: 7px; background: #232623; border: 1px solid #353b36; padding: 5px 8px; cursor: grab; }
+.parsons-line code { font: 12px/1.5 ui-monospace, monospace; color: var(--strong); white-space: pre-wrap; word-break: break-word; flex: 1; min-width: 0; }
+.parsons-line.tray-line:hover { border-color: var(--accent); }
+.parsons-line.answer-line { padding-left: calc(8px + var(--indent, 0) * 22px); }
+.parsons-line.answer-line.correct { border-color: #2c4a35; background: #1d261d; }
+.parsons-line.answer-line.incorrect { border-color: #4a3a33; background: #26201d; }
+.parsons-line.drop-target { border-color: var(--accent); border-style: dashed; }
+.parsons-handle { color: var(--quiet); display: inline-flex; }
+.parsons-handle svg { width: 13px; height: 13px; }
+.parsons-line-tools { display: inline-flex; gap: 0; flex: 0 0 auto; }
+.parsons-line-tools .icon-button { width: 24px; height: 24px; min-height: 24px; }
+.parsons-line-tools svg { width: 13px; height: 13px; }
+.parsons-controls { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.parsons-summary { font-size: 12px; margin-left: auto; }
+
 @media (max-width: 975px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }

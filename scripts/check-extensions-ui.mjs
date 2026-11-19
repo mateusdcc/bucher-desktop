@@ -214,12 +214,51 @@ tests:
 \`\`\`
 `;
 
+const parsonsChapter = `---
+name: Parsons
+order: 5
+---
+
+# Parsons
+
+Order the proof:
+
+\`\`\`ext-parsons-puzzle
+id: parsons-order
+title: Sum of two evens
+prompt: Arrange the proof steps in a valid logical order.
+lines:
+  - text: "Let m = 2a and n = 2b."
+  - text: "Then m + n = 2a + 2b."
+  - text: "Factor: m + n = 2(a + b)."
+  - text: "Since a + b is an integer, m + n is even."
+distractors:
+  - "Therefore m + n is odd."
+\`\`\`
+
+Order and indent the Python:
+
+\`\`\`ext-parsons-puzzle
+id: parsons-indent
+title: Indent the function
+indentation: true
+lines:
+  - text: "def total(n):"
+    indent: 0
+  - text: "s = 0"
+    indent: 1
+  - text: "return s"
+    indent: 1
+\`\`\`
+`;
+
 const fixtureEntries = [
   { path: 'Buches/Extension Lab/_index.md', source: labIndex },
   { path: 'Buches/Extension Lab/concepts/Diagrams.md', source: diagramsChapter },
   { path: 'Buches/Extension Lab/concepts/Plots.md', source: plotsChapter },
   { path: 'Buches/Extension Lab/concepts/Steppers.md', source: steppersChapter },
   { path: 'Buches/Extension Lab/concepts/Code Lab.md', source: codeLabChapter },
+  { path: 'Buches/Extension Lab/concepts/Parsons.md', source: parsonsChapter },
 ];
 
 const browser = await chromium.launch(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' });
@@ -500,6 +539,79 @@ const scenarios = {
     await shot(page, 'codelab-04-timeout');
     await frame.getByRole('button', { name: 'Reset code' }).click();
     assert.match(await frame.locator('.cm-content').textContent(), /your code here/);
+  },
+  async parsons(page) {
+    await openChapter(page, 'Parsons');
+    const frame = page.locator('.extension-frame[data-extension="ext-parsons-puzzle"][data-block-key="id:parsons-order"]');
+    await frame.locator('.parsons-line').first().waitFor();
+    assert.equal(await frame.locator('.parsons-tray .parsons-line').count(), 5);
+    assert.equal(await frame.locator('.parsons-answer .parsons-line').count(), 0);
+    assert.equal(await frame.getByRole('button', { name: 'Check order' }).isDisabled(), true);
+    await shot(page, 'parsons-01-scrambled');
+
+    // Click-to-order the correct sequence.
+    for (const line of [0, 1, 2, 3]) {
+      await frame.locator(`.parsons-tray .parsons-line[data-line="${line}"]`).click();
+    }
+    assert.equal(await frame.locator('.parsons-answer .parsons-line').count(), 4);
+    await frame.getByRole('button', { name: 'Check order' }).click();
+    assert.equal(await frame.locator('.parsons-summary').textContent(), 'Correct — well done!');
+    assert.equal(await frame.locator('.parsons-answer .parsons-line.correct').count(), 4);
+    await frame.locator('.extension-badge[data-status="passed"]').waitFor();
+    await page.getByRole('button', { name: 'Solved', exact: true }).first().waitFor();
+    await shot(page, 'parsons-02-solved');
+
+    // Arrangement survives reload; shuffle resets it.
+    await page.waitForTimeout(650);
+    await page.reload();
+    await page.locator('article h1.page-title', { hasText: 'Parsons' }).waitFor();
+    await frame.locator('.parsons-answer .parsons-line').first().waitFor();
+    assert.equal(await frame.locator('.parsons-answer .parsons-line').count(), 4);
+    assert.equal(await frame.locator('.extension-badge').textContent(), 'Passed');
+    await frame.getByRole('button', { name: 'Shuffle / reset' }).click();
+    assert.equal(await frame.locator('.parsons-answer .parsons-line').count(), 0);
+    assert.equal(await frame.locator('.parsons-tray .parsons-line').count(), 5);
+    assert.equal(await frame.locator('.extension-badge').textContent(), 'Unsolved');
+
+    // Wrong order gives per-line feedback.
+    for (const line of [1, 0, 2, 3]) {
+      await frame.locator(`.parsons-tray .parsons-line[data-line="${line}"]`).click();
+    }
+    await frame.getByRole('button', { name: 'Check order' }).click();
+    assert.equal(await frame.locator('.parsons-summary').textContent(), '2 of 4 placed lines correct');
+    assert.equal(await frame.locator('.parsons-answer .parsons-line.incorrect').count(), 2);
+    assert.equal(await frame.locator('.parsons-answer .parsons-line.correct').count(), 2);
+    await shot(page, 'parsons-03-feedback');
+
+    // Return a line to the tray with its remove button.
+    await frame.locator('.parsons-answer .parsons-line').first().getByRole('button', { name: 'Return line to tray' }).click();
+    assert.equal(await frame.locator('.parsons-answer .parsons-line').count(), 3);
+    assert.equal(await frame.locator('.parsons-tray .parsons-line').count(), 2);
+
+    // HTML5 drag-and-drop: drag a tray line into the answer zone.
+    await frame.evaluate(root => {
+      const chip = root.querySelector('.parsons-tray .parsons-line');
+      const transfer = new DataTransfer();
+      chip.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+      const zone = root.querySelector('.parsons-answer');
+      zone.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: transfer }));
+    });
+    assert.equal(await frame.locator('.parsons-answer .parsons-line').count(), 4);
+
+    // Indentation is graded on the second block.
+    const indent = page.locator('.extension-frame[data-block-key="id:parsons-indent"]');
+    for (const line of [0, 1, 2]) {
+      await indent.locator(`.parsons-tray .parsons-line[data-line="${line}"]`).click();
+    }
+    await indent.getByRole('button', { name: 'Check order' }).click();
+    assert.equal(await indent.locator('.parsons-summary').textContent(), '1 of 3 placed lines correct');
+    for (const position of [1, 2]) {
+      await indent.locator('.parsons-answer .parsons-line').nth(position).getByRole('button', { name: 'Increase indent' }).click();
+    }
+    await indent.getByRole('button', { name: 'Check order' }).click();
+    assert.equal(await indent.locator('.parsons-summary').textContent(), 'Correct — well done!');
+    await indent.locator('.extension-badge[data-status="passed"]').waitFor();
+    await shot(page, 'parsons-04-indent');
   },
 };
 

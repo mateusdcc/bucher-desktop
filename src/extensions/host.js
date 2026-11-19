@@ -166,8 +166,11 @@ function mountBlock(placeholder, ctx, id, occurrence) {
 
   function updateBadge() {
     if (!badge) return;
-    const passed = currentSaved?.status === 'passed' || solvedInBook();
-    const status = passed ? 'Passed' : currentSaved || solvedInBook() ? 'In Progress' : 'Unsolved';
+    // Block state wins; the book's solved list is the fallback for blocks
+    // without saved state (e.g. marked solved by hand).
+    const status = currentSaved?.status === 'passed' ? 'Passed'
+      : currentSaved ? (currentSaved.status === 'in-progress' ? 'In Progress' : 'Unsolved')
+        : solvedInBook() ? 'Passed' : 'Unsolved';
     badge.textContent = status;
     badge.dataset.status = status.toLowerCase().replace(' ', '-');
     frame.dataset.status = badge.dataset.status;
