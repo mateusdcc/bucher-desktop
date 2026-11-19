@@ -1,6 +1,6 @@
 # Bücher Extension System — Architecture
 
-Status: Phase 1 audit & design. Implementation follows in atomic commits (see plan at the end).
+Status: **implemented and verified** (Phases 1–7 complete; see the commit log and `docs/extensions.md`).
 
 ## 1. Codebase audit (what exists today)
 
@@ -206,12 +206,21 @@ from `demo/`.
   and interacts, code-lab passes/fails/timeouts, persistence survives reload, manager toggles change
   rendering and the composed skill prompt, AI import fixture receives the skills section.
 
-## 12. Commit plan (atomic, each verified before commit)
+## 12. Commit plan (atomic, each verified before commit) — executed
 
-1. `docs(extensions)`: this audit/architecture.
-2. `feat(extensions)`: SDK types, zod validation, registry, error boundary, typecheck setup, deps.
-3. `feat(extensions)`: skill composer + Rust `skills` parameter + ai.js wiring.
-4. `feat(extensions)`: frame UI, hydration, `_progress.md` persistence, exercise integration, manager UI.
-5. `feat(extensions)`: ext-mermaid. 6. ext-math-plot. 7. ext-state-stepper.
-8. `feat(extensions)`: ext-code-lab (worker, CSP, build entry). 9. ext-parsons-puzzle. 10. ext-sql-lab.
-11. `feat(extensions)`: showcase book, seeding, E2E script, final verification.
+1. `docs(extensions)`: this audit/architecture. — `117acaf`
+2. `feat(extensions)`: SDK types, zod validation, registry, error boundary, typecheck setup, deps. — `12b7b03`
+3. `feat(extensions)`: skill composer + Rust `skills` parameter + ai.js wiring. — `177a144`
+4. `feat(extensions)`: frame UI, hydration, `_progress.md` persistence, exercise integration, manager UI. — `7b15bd7`
+5. `feat(extensions)`: ext-mermaid (`e4a4615`), ext-math-plot (`152cbdc`), ext-state-stepper (`10a4fd2`).
+6. `feat(extensions)`: ext-code-lab (`cb50a1f`), ext-parsons-puzzle (`b501383`), ext-sql-lab (`801ca1d`).
+7. `feat(extensions)`: showcase book, one-time seeding, authoring guide, E2E suite, final verification.
+
+Final verification (all green): `npm run typecheck` (strict tsc/checkJs over `src/extensions/`),
+`npm test` (12 tests incl. worker-vm sandbox checks and few-shot schema validation for every built-in),
+`npm run build` (app + code-lab worker + split chunks), `cargo test --locked` (8 tests incl. showcase
+seeding and skills prompt composition), `node scripts/check-local-ai.mjs` (Ollama fixture smoke),
+`node scripts/check-ai-ui.mjs` (11 pre-existing reader/AI scenarios, no regressions), and
+`node scripts/check-extensions-ui.mjs` (7 scenarios: one per extension plus a full showcase-book
+walkthrough covering rendering, interaction, persistence across reload, auto-completion, manager
+toggles, and AI skill injection).

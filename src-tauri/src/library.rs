@@ -39,6 +39,58 @@ const DEMO: &[(&str, &str)] = &[
     ),
 ];
 
+/// Built-in tour of the extension system. Seeded once into every library
+/// (including already-initialized ones) via the `.showcase-seeded` marker,
+/// so deleting the book keeps it deleted.
+const SHOWCASE: &[(&str, &str)] = &[
+    (
+        "_index.md",
+        include_str!("../../demo/Buches/The Interactive Extension Showcase/_index.md"),
+    ),
+    (
+        "concepts/Diagrams with Mermaid.md",
+        include_str!(
+            "../../demo/Buches/The Interactive Extension Showcase/concepts/Diagrams with Mermaid.md"
+        ),
+    ),
+    (
+        "concepts/Exploring Functions.md",
+        include_str!(
+            "../../demo/Buches/The Interactive Extension Showcase/concepts/Exploring Functions.md"
+        ),
+    ),
+    (
+        "concepts/Watching Algorithms Run.md",
+        include_str!(
+            "../../demo/Buches/The Interactive Extension Showcase/concepts/Watching Algorithms Run.md"
+        ),
+    ),
+    (
+        "concepts/Coding Practice.md",
+        include_str!(
+            "../../demo/Buches/The Interactive Extension Showcase/concepts/Coding Practice.md"
+        ),
+    ),
+    (
+        "concepts/Ordering Proofs.md",
+        include_str!(
+            "../../demo/Buches/The Interactive Extension Showcase/concepts/Ordering Proofs.md"
+        ),
+    ),
+    (
+        "concepts/Querying Data.md",
+        include_str!(
+            "../../demo/Buches/The Interactive Extension Showcase/concepts/Querying Data.md"
+        ),
+    ),
+    (
+        "concepts/Authoring with Extensions.md",
+        include_str!(
+            "../../demo/Buches/The Interactive Extension Showcase/concepts/Authoring with Extensions.md"
+        ),
+    ),
+];
+
 #[derive(Serialize)]
 pub struct Entry {
     pub path: String,
@@ -370,6 +422,20 @@ pub fn load(root: &Path) -> io::Result<Vec<Entry>> {
         }
         fs::write(initialized, "")?;
     }
+    let showcase_seeded = root.join(".showcase-seeded");
+    if !showcase_seeded.try_exists()? {
+        let name = "The Interactive Extension Showcase";
+        if !collection.join(name).try_exists()? {
+            let staging = tempfile::tempdir_in(&collection)?;
+            for (relative, source) in SHOWCASE {
+                let file = staging.path().join(relative);
+                fs::create_dir_all(file.parent().unwrap())?;
+                fs::write(file, source)?;
+            }
+            fs::rename(staging.path(), collection.join(name))?;
+        }
+        fs::write(showcase_seeded, "")?;
+    }
     let mut entries = Vec::new();
     visit(&collection, &mut |path| {
         let relative = path
@@ -422,6 +488,20 @@ mod tests {
             .unwrap()
             .iter()
             .any(|entry| entry.path == key && entry.source.as_deref() == Some("New content")));
+    }
+
+    #[test]
+    fn seeds_the_showcase_once_and_respects_deletion() {
+        let root = tempfile::tempdir().unwrap();
+        let entries = load(root.path()).unwrap();
+        assert!(entries
+            .iter()
+            .any(|entry| entry.path == "Buches/The Interactive Extension Showcase/_index.md"));
+        fs::remove_dir_all(root.path().join("Buches/The Interactive Extension Showcase")).unwrap();
+        let entries = load(root.path()).unwrap();
+        assert!(!entries
+            .iter()
+            .any(|entry| entry.path.starts_with("Buches/The Interactive Extension Showcase/")));
     }
 
     #[test]

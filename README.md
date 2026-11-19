@@ -16,6 +16,12 @@ Choose **Write a solution**, **New attempt**, or **Edit** to write directly in t
 
 Under **Settings → AI**, choose a local Ollama model or connect ChatGPT in your browser and choose a ChatGPT model. Select **ChatGPT** as the AI provider to use your eligible ChatGPT plan or available credits for explanations, solutions, reviews, patches, and Markdown imports. Bücher sends the relevant text for each ChatGPT request to OpenAI. **Manage usage** opens the usage and app limits page. See the [AI command guide](docs/local-ai.md).
 
+## Interactive extensions
+
+Books can embed interactive blocks: Mermaid diagrams, live function plots, step-by-step algorithm players, coding exercises with hidden unit tests, Parsons ordering puzzles, and SQL practice. The built-in book **The Interactive Extension Showcase** tours all six; it is seeded into your library once on first launch after updating.
+
+Open **Settings → Extensions** to toggle extensions and inspect the AI authoring skill each one exposes. Enabled skills are injected into *Import with AI* and *Propose a patch*, so generated books can use the blocks too. Exercise blocks mark themselves solved when you pass them, and all block state persists in the book's `_progress.md`. See the [extension guide](docs/extensions.md) and [architecture notes](EXTENSIONS_ARCHITECTURE.md).
+
 ## Develop
 
 Install Node.js, Rust 1.89 or later, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your platform.
@@ -24,7 +30,9 @@ Install Node.js, Rust 1.89 or later, and the [Tauri prerequisites](https://v2.ta
 npm ci
 npm run tauri -- dev
 npm test
+npm run typecheck
 cargo test --manifest-path src-tauri/Cargo.toml --locked
+node scripts/check-extensions-ui.mjs
 ```
 
 Build a local macOS app bundle with ad-hoc signing:

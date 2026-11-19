@@ -292,7 +292,12 @@ const fixtureEntries = [
 
 const browser = await chromium.launch(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' });
 
-async function setup(entries = fixtureEntries) {
+const demo = 'demo/Buches';
+const demoEntries = await Promise.all((await readdir(demo, { recursive: true }))
+  .filter(file => file.endsWith('.md'))
+  .map(async file => ({ path: 'Buches/' + file, source: await readFile(resolve(demo, file), 'utf8') })));
+
+async function setup(entries = fixtureEntries, bookTitle = 'Extension Lab') {
   const page = await browser.newPage({ viewport: { width: 1280, height: 840 } });
   await page.route('http://localhost/**', route => {
     const { pathname } = new URL(route.request().url());
@@ -331,7 +336,7 @@ async function setup(entries = fixtureEntries) {
     };
   }, entries);
   await page.goto('http://localhost/');
-  await page.getByRole('heading', { name: 'Extension Lab', level: 1 }).waitFor();
+  await page.getByRole('heading', { name: bookTitle, level: 1 }).waitFor();
   return page;
 }
 
@@ -688,6 +693,123 @@ const scenarios = {
     await frame.locator('.sql-expected summary').click();
     assert.equal(await frame.locator('.sql-expected .sql-table tbody tr').count(), 2);
   },
+  async showcase(page) {
+    // The real seeded showcase book, loaded from demo/ like the app seeds it.
+    await page.locator('.tree-link', { hasText: 'The Interactive Extension Showcase' }).first().click();
+    await page.getByRole('heading', { name: 'The Interactive Extension Showcase', level: 1 }).waitFor();
+    await page.getByText('0 of 4 exercises solved').waitFor();
+    await shot(page, 'showcase-01-overview');
+    const noFallbacks = async () => assert.equal(await page.locator('article .extension-fallback').count(), 0);
+
+    // Visualization chapters.
+    await openChapter(page, 'Diagrams with Mermaid');
+    await page.locator('.extension-frame[data-extension="ext-mermaid"] .mermaid-stage svg').first().waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('.extension-frame[data-extension="ext-mermaid"]').count(), 2);
+    await noFallbacks();
+    await shot(page, 'showcase-02-mermaid');
+
+    await openChapter(page, 'Exploring Functions');
+    await page.locator('.extension-frame[data-extension="ext-math-plot"] canvas').first().waitFor();
+    const quadratic = page.locator('.extension-frame[data-block-key="id:showcase-quadratic"]');
+    await quadratic.getByLabel('Parameter a').evaluate(node => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(node, '-2');
+      node.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    assert.equal(await quadratic.locator('.plot-param-value').first().textContent(), '-2');
+    await noFallbacks();
+    await shot(page, 'showcase-03-plot');
+
+    await openChapter(page, 'Watching Algorithms Run');
+    const trace = page.locator('.extension-frame[data-block-key="id:showcase-bubble-sort"]');
+    await trace.locator('.stepper-cell').first().waitFor();
+    await trace.getByRole('button', { name: 'Next step' }).click();
+    assert.equal(await trace.locator('.stepper-counter').textContent(), 'Step 2 / 4');
+    await noFallbacks();
+
+    // Exercise chapter: solve the code lab inside its exercise callout.
+    await openChapter(page, 'Coding Practice');
+    const lab = page.locator('.extension-frame[data-block-key="id:showcase-binary-search"]');
+    await lab.locator('.cm-content').waitFor();
+    assert.equal(await page.locator('.callout.exercise').count(), 1);
+    await lab.locator('.cm-content').click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText('function binarySearch(a, target) {\n  let lo = 0, hi = a.length - 1;\n  while (lo <= hi) {\n    const mid = (lo + hi) >> 1;\n    if (a[mid] === target) return mid;\n    if (a[mid] < target) lo = mid + 1;\n    else hi = mid - 1;\n  }\n  return -1;\n}');
+    await lab.getByRole('button', { name: 'Run tests' }).click();
+    await lab.locator('.extension-badge[data-status="passed"]').waitFor();
+    await page.getByRole('button', { name: 'Solved', exact: true }).first().waitFor();
+    await noFallbacks();
+    await shot(page, 'showcase-04-codelab');
+
+    // Parsons chapter: solve the proof puzzle inside its callout.
+    await openChapter(page, 'Ordering Proofs');
+    const proof = page.locator('.extension-frame[data-block-key="id:showcase-even-sum-proof"]');
+    await proof.locator('.parsons-line').first().waitFor();
+    for (const line of [0, 1, 2, 3]) {
+      await proof.locator(`.parsons-tray .parsons-line[data-line="${line}"]`).click();
+    }
+    await proof.getByRole('button', { name: 'Check order' }).click();
+    await proof.locator('.extension-badge[data-status="passed"]').waitFor();
+    assert.equal(await page.locator('.extension-frame[data-extension="ext-parsons-puzzle"]').count(), 2);
+    await noFallbacks();
+
+    // SQL chapter: solve the join exercise.
+    await openChapter(page, 'Querying Data');
+    const sql = page.locator('.extension-frame[data-block-key="id:showcase-orders-per-customer"]');
+    await sql.locator('.sql-table-chip').first().waitFor({ timeout: 20000 });
+    await sql.locator('.cm-content').click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText('SELECT c.name, COUNT(*) AS orders FROM customers c JOIN orders o ON o.customer_id = c.id GROUP BY c.name');
+    await sql.getByRole('button', { name: 'Run query' }).click();
+    await sql.locator('.sql-verdict.pass').waitFor();
+    await noFallbacks();
+    await shot(page, 'showcase-05-sql');
+
+    // Meta chapter: the nested example fence stays code, the pipeline renders.
+    await openChapter(page, 'Authoring with Extensions');
+    await page.locator('.extension-frame[data-block-key="id:showcase-pipeline"] .mermaid-stage svg').waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('.extension-frame[data-extension="ext-math-plot"]').count(), 0);
+    await noFallbacks();
+
+    // Overview reflects the three solved exercises.
+    await page.locator('.tree-link', { hasText: 'The Interactive Extension Showcase' }).first().click();
+    await page.getByText('3 of 4 exercises solved').waitFor();
+    await shot(page, 'showcase-06-progress');
+
+    // AI import receives the composed skills of all enabled extensions.
+    await button(page, 'Settings').click();
+    await button(page, 'AI').click();
+    await page.locator('.ollama-settings summary').click();
+    await page.getByText('Connected', { exact: true }).waitFor();
+    await page.getByLabel('Local model').selectOption('fixture:latest');
+    await button(page, 'Back to reader').click();
+    const prepare = async () => {
+      await page.getByRole('button', { name: 'Import with AI' }).click();
+      await page.getByLabel('Book title').fill('Skill probe');
+      await page.getByLabel('Source Markdown').fill('# Probe\n\nSome content.');
+      await page.getByRole('button', { name: 'Prepare draft' }).click();
+      await page.getByText('Fixture does not generate.').waitFor();
+      await page.getByRole('button', { name: 'Dismiss prepare from markdown' }).click();
+    };
+    await prepare();
+    const first = await page.evaluate(() => window.fixtureSkillRequests.at(-1));
+    assert.equal(first.command, 'ai_prepare_import');
+    for (const id of ['ext-mermaid', 'ext-math-plot', 'ext-state-stepper', 'ext-code-lab', 'ext-parsons-puzzle', 'ext-sql-lab']) {
+      assert.ok(first.skills.includes(id), `skills must include ${id}`);
+    }
+    assert.match(first.skills, /few-shot|Example —/);
+
+    // Disabling an extension removes its skill from the next request.
+    await openExtensionsManager(page);
+    await page.getByRole('switch', { name: 'Disable SQL Lab' }).click();
+    await page.getByRole('switch', { name: 'Enable SQL Lab' }).waitFor();
+    await page.getByRole('button', { name: 'Back to reader' }).click();
+    await prepare();
+    const second = await page.evaluate(() => window.fixtureSkillRequests.at(-1));
+    assert.ok(!second.skills.includes('ext-sql-lab'));
+    assert.ok(second.skills.includes('ext-mermaid'));
+    await shot(page, 'showcase-07-skills');
+  },
 };
 
 try {
@@ -695,7 +817,7 @@ try {
   const names = process.argv.length > 2 ? process.argv.slice(2) : Object.keys(scenarios);
   for (const name of names) {
     assert.ok(Object.hasOwn(scenarios, name), `Unknown UI test ${name}`);
-    const page = await setup();
+    const page = name === 'showcase' ? await setup(demoEntries, 'Proofs in Linear Algebra') : await setup();
     const errors = [];
     page.on('pageerror', error => errors.push(error));
     page.on('console', message => {
