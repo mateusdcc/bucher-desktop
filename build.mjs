@@ -10,10 +10,11 @@ const options = {
   format: 'esm',
   splitting: true,
   chunkNames: 'chunks/[name]-[hash]',
+  jsx: 'automatic',
   target: ['safari16', 'chrome105'],
   outdir: 'dist',
   assetNames: 'assets/[name]-[hash]',
-  loader: { '.woff2': 'file', '.woff': 'file', '.ttf': 'file', '.svg': 'file' },
+  loader: { '.woff2': 'file', '.woff': 'file', '.ttf': 'file', '.svg': 'file', '.css': 'css' },
 };
 // The code-lab sandbox runs in a classic same-origin worker (CSP worker-src 'self').
 const workerOptions = {
