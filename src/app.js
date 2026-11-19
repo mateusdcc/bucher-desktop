@@ -18,6 +18,7 @@ import memory from './model/book-memory';
 import { headingId, renderMarkdown } from './markdown';
 import { registry } from './extensions/index.js';
 import './extensions/builtins.js';
+import { auditCapabilities } from './extensions/capability.js';
 import { hydrateExtensions } from './extensions/host.js';
 import { showChapter, showExercises, showNote, showOutline, showOverview, statusIndicator } from './reader';
 import { panelResize } from './panel-resize';
@@ -695,6 +696,7 @@ document.addEventListener('keydown', event => {
 
 setup();
 registry.subscribe(() => render(true));
+auditCapabilities(registry).catch(report);
 article.append(el('p', 'muted', 'Opening library…'));
 load().catch(error => {
   article.replaceChildren(el('h1', 'page-title', 'Could not open the library'), el('p', 'muted', error?.message || String(error)),

@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod ai;
+mod capability;
 mod chatgpt;
 mod library;
 
@@ -99,7 +100,8 @@ fn main() {
             ai::ai_review_solution,
             ai::ai_propose_patch,
             ai::ai_prepare_import,
-            ai::ai_import_book
+            ai::ai_import_book,
+            capability::check_capability
         ])
         .run(tauri::generate_context!())
         .expect("Bücher could not start");

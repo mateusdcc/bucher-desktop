@@ -322,6 +322,27 @@ test('dependency manifests aggregate and match the installed package.json', () =
   assert.deepEqual(registry.tauriDependencies(), []);
 });
 
+test('capability bridge falls back gracefully outside Tauri and stores audit results', async () => {
+  const { isTauri, checkTauriCapability, auditCapabilities } = require('../src/extensions/capability');
+  const { ExtensionRegistry } = require('../src/extensions/registry');
+  assert.equal(isTauri(), false);
+  const dependency = { type: 'ipc-command', name: 'workbench_git', fallbackBehavior: 'disable-on-web', purpose: 'Run git inside a sandboxed workspace.' };
+  const status = await checkTauriCapability(dependency);
+  assert.equal(status.available, false);
+  assert.match(status.detail, /Tauri desktop shell/);
+  const registry = new ExtensionRegistry({ storage: null });
+  registry.register(fakeExtension({
+    id: 'ext-native',
+    dependencies: { webPackages: [], tauriDependencies: [dependency] },
+  }));
+  assert.equal(registry.capabilityFor(dependency), null);
+  const audit = await auditCapabilities(registry);
+  assert.equal(audit.size, 1);
+  assert.equal(registry.capabilityFor(dependency).available, false);
+  registry.setCapabilityStatus('ipc-command:workbench_git', { name: 'workbench_git', kind: 'ipc-command', available: true, detail: 'ok' });
+  assert.equal(registry.capabilityFor(dependency).available, true);
+});
+
 test('every built-in extension registers and its few-shot examples validate', () => {
   require('../src/extensions/builtins');
   const { registry } = require('../src/extensions/registry');

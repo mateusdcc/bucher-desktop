@@ -45,6 +45,8 @@ export class ExtensionRegistry {
       : options.storage;
     /** @type {Set<string>} */
     this.disabled = new Set();
+    /** @type {Map<string, import('./capability.js').CapabilityStatus>} */
+    this.capabilityStatuses = new Map();
     if (this.storage) {
       try {
         this.disabled = new Set(disabledList(JSON.parse(this.storage.getItem(STORAGE_KEY) ?? '[]')));
@@ -145,6 +147,24 @@ export class ExtensionRegistry {
       }
     }
     return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Store a capability health-check result (key = `type:name`).
+   *
+   * @param {string} key
+   * @param {import('./capability.js').CapabilityStatus} status
+   */
+  setCapabilityStatus(key, status) {
+    this.capabilityStatuses.set(key, status);
+  }
+
+  /**
+   * @param {TauriDependency} dependency
+   * @returns {import('./capability.js').CapabilityStatus | null} null until audited
+   */
+  capabilityFor(dependency) {
+    return this.capabilityStatuses.get(dependency.type + ':' + dependency.name) ?? null;
   }
 
   /**
