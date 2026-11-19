@@ -7,6 +7,8 @@
 import { registry } from './registry.js';
 import { mermaidExtension } from './mermaid.js';
 import { mathPlotExtension } from './math-plot.js';
+import { stateStepperExtension } from './state-stepper.js';
 
 registry.register(mermaidExtension);
 registry.register(mathPlotExtension);
+registry.register(stateStepperExtension);

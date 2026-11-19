@@ -90,10 +90,79 @@ functions:
 \`\`\`
 `;
 
+const steppersChapter = `---
+name: Steppers
+order: 3
+---
+
+# Steppers
+
+An algorithm trace:
+
+\`\`\`ext-state-stepper
+id: sort-trace
+title: Bubble sort pass
+steps:
+  - title: Start
+    explanation: Compare the first pair.
+    arrays:
+      - name: a
+        values: [5, 2, 8, 1]
+        highlight: [0, 1]
+        pointers: { i: 0, j: 1 }
+    variables: { swaps: 0 }
+  - title: Swap
+    explanation: 5 > 2, swap them.
+    arrays:
+      - name: a
+        values: [2, 5, 8, 1]
+        highlight: [0, 1]
+        pointers: { i: 0, j: 1 }
+    variables: { swaps: 1 }
+  - title: Advance
+    explanation: Move the window right.
+    arrays:
+      - name: a
+        values: [2, 5, 8, 1]
+        highlight: [1, 2]
+        pointers: { i: 1, j: 2 }
+    variables: { swaps: 1 }
+  - title: Done
+    explanation: The pass ends with 8 at the right edge.
+    arrays:
+      - name: a
+        values: [2, 5, 1, 8]
+        highlight: [2, 3]
+        pointers: { i: 2, j: 3 }
+    variables: { swaps: 2 }
+\`\`\`
+
+A state machine:
+
+\`\`\`ext-state-stepper
+id: states-1
+title: Connection states
+steps:
+  - title: Closed
+    nodes:
+      - { id: closed, label: CLOSED, active: true }
+      - { id: listen, label: LISTEN }
+    edges:
+      - { from: closed, to: listen, label: open }
+  - title: Listening
+    nodes:
+      - { id: closed, label: CLOSED }
+      - { id: listen, label: LISTEN, active: true }
+    edges:
+      - { from: closed, to: listen, label: open, active: true }
+\`\`\`
+`;
+
 const fixtureEntries = [
   { path: 'Buches/Extension Lab/_index.md', source: labIndex },
   { path: 'Buches/Extension Lab/concepts/Diagrams.md', source: diagramsChapter },
   { path: 'Buches/Extension Lab/concepts/Plots.md', source: plotsChapter },
+  { path: 'Buches/Extension Lab/concepts/Steppers.md', source: steppersChapter },
 ];
 
 const browser = await chromium.launch(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' });
@@ -271,6 +340,59 @@ const scenarios = {
     assert.ok(await page.locator('.extension-fallback', { hasText: 'could not render' }).textContent()
       .then(text => text.includes('mystery')));
     await shot(page, 'plot-03-error-fallback');
+  },
+  async stateStepper(page) {
+    await openChapter(page, 'Steppers');
+    const frame = page.locator('.extension-frame[data-extension="ext-state-stepper"][data-block-key="id:sort-trace"]');
+    await frame.locator('.stepper-cell').first().waitFor();
+    assert.equal(await frame.locator('.stepper-counter').textContent(), 'Step 1 / 4');
+    assert.equal(await frame.locator('.stepper-cell').first().textContent(), '5');
+    assert.equal(await frame.locator('.stepper-cell.highlighted').count(), 2);
+    assert.equal(await frame.locator('.stepper-pointer').count(), 2);
+    await shot(page, 'stepper-01-step1');
+
+    // Next advances the snapshot.
+    await frame.getByRole('button', { name: 'Next step' }).click();
+    assert.equal(await frame.locator('.stepper-counter').textContent(), 'Step 2 / 4');
+    assert.equal(await frame.locator('.stepper-cell').first().textContent(), '2');
+    assert.match(await frame.locator('.stepper-variable').textContent(), /1/);
+
+    // Position persists across reload.
+    await page.waitForTimeout(650);
+    await page.reload();
+    await page.locator('article h1.page-title', { hasText: 'Steppers' }).waitFor();
+    await frame.locator('.stepper-cell').first().waitFor();
+    assert.equal(await frame.locator('.stepper-counter').textContent(), 'Step 2 / 4');
+
+    // Prev and bounds.
+    await frame.getByRole('button', { name: 'Previous step' }).click();
+    assert.equal(await frame.locator('.stepper-counter').textContent(), 'Step 1 / 4');
+    assert.equal(await frame.getByRole('button', { name: 'Previous step' }).isDisabled(), true);
+    for (let i = 0; i < 3; i += 1) await frame.getByRole('button', { name: 'Next step' }).click();
+    assert.equal(await frame.locator('.stepper-counter').textContent(), 'Step 4 / 4');
+    assert.equal(await frame.getByRole('button', { name: 'Next step' }).isDisabled(), true);
+
+    // Auto-play restarts from the end and advances; pause stops it.
+    await frame.getByLabel('Auto-play speed').selectOption('3');
+    await frame.getByRole('button', { name: 'Auto-play' }).click();
+    await frame.getByRole('button', { name: 'Pause' }).waitFor();
+    await page.waitForTimeout(550);
+    const played = await frame.locator('.stepper-counter').textContent();
+    assert.notEqual(played, 'Step 1 / 4');
+    await frame.getByRole('button', { name: 'Pause' }).click();
+    const paused = await frame.locator('.stepper-counter').textContent();
+    await page.waitForTimeout(450);
+    assert.equal(await frame.locator('.stepper-counter').textContent(), paused);
+    await shot(page, 'stepper-02-autoplay');
+
+    // State machine block renders nodes and transitions.
+    const graph = page.locator('.extension-frame[data-block-key="id:states-1"]');
+    await graph.locator('.stepper-node').first().waitFor();
+    assert.equal(await graph.locator('.stepper-node.active').count(), 1);
+    assert.equal(await graph.locator('.stepper-node-label.active').textContent(), 'CLOSED');
+    await graph.getByRole('button', { name: 'Next step' }).click();
+    assert.equal(await graph.locator('.stepper-node-label.active').textContent(), 'LISTEN');
+    await shot(page, 'stepper-03-graph');
   },
 };
 

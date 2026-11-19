@@ -33,10 +33,16 @@ export function button(label, glyph, action, className = '') {
   const node = el('button', className, glyph ? icon(glyph) : null, label);
   node.type = 'button';
   if (action) node.addEventListener('click', async event => {
+    let pending;
     try {
-      const pending = action(event);
-      if (!pending?.then) return;
-      node.disabled = true;
+      pending = action(event);
+    } catch (error) {
+      report(error);
+      return;
+    }
+    if (!pending?.then) return;
+    node.disabled = true;
+    try {
       await pending;
     } catch (error) {
       report(error);
