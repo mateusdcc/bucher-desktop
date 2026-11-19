@@ -3,6 +3,15 @@ import { copyFile, mkdir } from 'node:fs/promises';
 
 await mkdir('dist', { recursive: true });
 await copyFile('index.html', 'dist/index.html');
+
+// Pyodide is self-hosted (no CDN): its loader dynamically imports
+// pyodide.asm.mjs and fetches the wasm/stdlib/lockfile from indexURL at
+// runtime, so those assets must sit next to the app, same-origin.
+const pyodideAssets = ['pyodide.asm.mjs', 'pyodide.asm.wasm', 'python_stdlib.zip', 'pyodide-lock.json'];
+await mkdir('dist/pyodide', { recursive: true });
+for (const asset of pyodideAssets) {
+  await copyFile(`node_modules/pyodide/${asset}`, `dist/pyodide/${asset}`);
+}
 const options = {
   entryPoints: ['src/app.js'],
   bundle: true,
