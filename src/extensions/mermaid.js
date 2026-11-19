@@ -9,6 +9,7 @@
  */
 import { z } from 'zod';
 import { el, iconButton } from '../ui.js';
+import { trackRuntime } from './runtime.js';
 import { blockMeta, createValidator } from './validate.js';
 
 /**
@@ -229,7 +230,7 @@ function mountMermaid(host, props) {
   let fitObserver = null;
   (async () => {
     try {
-      const mermaid = (await import('mermaid')).default;
+      const mermaid = (await trackRuntime('mermaid', () => import('mermaid'))).default;
       if (destroyed) return;
       mermaid.initialize({
         startOnLoad: false,

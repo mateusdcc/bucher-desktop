@@ -810,6 +810,34 @@ const scenarios = {
     assert.ok(second.skills.includes('ext-mermaid'));
     await shot(page, 'showcase-07-skills');
   },
+  async manager(page) {
+    // Warm the mermaid runtime by visiting a diagram chapter.
+    await openChapter(page, 'Diagrams');
+    await page.locator('.extension-frame[data-extension="ext-mermaid"] .mermaid-stage svg').first().waitFor({ timeout: 20000 });
+    await openExtensionsManager(page);
+    await page.locator('.extension-runtimes .extension-runtime-row', { hasText: 'mermaid' }).waitFor();
+    assert.equal(await page.locator('.extension-runtimes .extension-runtime-row', { hasText: 'mermaid' }).locator('.extension-runtime-state').textContent(), 'warm');
+    await shot(page, 'manager-01-runtimes');
+
+    // Dependency inspector: lazy web package + live runtime chip.
+    await page.locator('.extension-manager-card', { hasText: 'Mermaid Diagram' }).getByRole('button', { name: 'Dependencies & Runtime' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Dependencies & Runtime · Mermaid Diagram' });
+    await dialog.waitFor();
+    const mermaidRow = dialog.locator('.extension-dep-row', { hasText: 'mermaid' });
+    assert.match(await mermaidRow.locator('.extension-dep-version').textContent(), /\^11\.17\.2/);
+    assert.equal(await mermaidRow.locator('.extension-dep-badge').textContent(), 'lazy-loaded');
+    assert.equal(await mermaidRow.locator('.extension-runtime-state').textContent(), 'warm');
+    assert.ok(await dialog.textContent().then(text => text.includes('No native dependencies')));
+    await shot(page, 'manager-02-dependencies');
+    await page.keyboard.press('Escape');
+
+    // Bundled packages show the bundled badge.
+    await page.locator('.extension-manager-card', { hasText: 'Code Lab' }).getByRole('button', { name: 'Dependencies & Runtime' }).click();
+    const labDialog = page.getByRole('dialog', { name: 'Dependencies & Runtime · Code Lab' });
+    await labDialog.waitFor();
+    assert.equal(await labDialog.locator('.extension-dep-row', { hasText: '@codemirror/view' }).locator('.extension-dep-badge').textContent(), 'bundled');
+    await page.keyboard.press('Escape');
+  },
 };
 
 try {

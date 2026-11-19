@@ -696,7 +696,7 @@ document.addEventListener('keydown', event => {
 
 setup();
 registry.subscribe(() => render(true));
-auditCapabilities(registry).catch(report);
+auditCapabilities(registry).then(() => registry.notify()).catch(report);
 article.append(el('p', 'muted', 'Opening library…'));
 load().catch(error => {
   article.replaceChildren(el('h1', 'page-title', 'Could not open the library'), el('p', 'muted', error?.message || String(error)),

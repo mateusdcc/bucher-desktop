@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { registry } from './extensions/index.js';
+import { checkTauriCapability } from './extensions/capability.js';
+import { allRuntimes, runtimeStatus, subscribeRuntime } from './extensions/runtime.js';
 import { composeSkills } from './extensions/skills.js';
 import { jsonSchemaFor } from './extensions/validate.js';
 import { button, dialog, el, icon } from './ui';
@@ -277,6 +279,7 @@ function extensionSettings() {
           panel.append(el('p', 'muted', 'Exactly what the book-generation pipeline receives from the enabled extensions.'),
             el('pre', 'extension-source', skills || 'No extensions are enabled.'));
         })))),
+    runtimeOverview(),
   ];
   if (!extensions.length) {
     sections.push(el('section', 'settings-section', el('p', 'muted', 'No extensions are installed yet.')));
@@ -307,9 +310,99 @@ function extensionSettings() {
         toggle),
       el('p', 'muted', extension.description),
       el('div', 'extension-manager-actions',
-        button('View AI skill', 'sparkles', () => showSkill(extension)))));
+        button('View AI skill', 'sparkles', () => showSkill(extension)),
+        button('Dependencies & Runtime', 'package', () => showDependencies(extension)))));
   }
   return sections;
+}
+
+/** Live cold/loading/warm overview of the heavy lazy runtimes. */
+function runtimeOverview() {
+  const section = el('section', 'settings-section extension-runtimes',
+    el('h3', '', 'Heavy runtimes'),
+    el('p', 'muted', 'Lazy engines load only when a block needs them and are shared across blocks.'));
+  const list = el('div', 'extension-runtime-list');
+  section.append(list);
+  function draw() {
+    const runtimes = allRuntimes();
+    list.replaceChildren(...(runtimes.length ? runtimes : [{ name: 'No runtime has loaded yet.', state: 'cold', detail: '', since: 0 }]).map(status =>
+      el('div', 'extension-runtime-row',
+        el('span', `extension-runtime-state ${status.state}`, status.state),
+        el('strong', '', status.name),
+        el('span', 'muted', status.detail))));
+  }
+  draw();
+  const unsubscribe = subscribeRuntime(() => {
+    if (!section.isConnected) return unsubscribe();
+    draw();
+  });
+  return section;
+}
+
+/** Per-extension dependency manifest and live native capability health. */
+function showDependencies(extension) {
+  dialog(`Dependencies & Runtime · ${extension.name}`, panel => {
+    panel.classList.add('extension-source-dialog');
+    panel.append(el('h3', '', 'Web packages'));
+    const packages = extension.dependencies.webPackages;
+    if (!packages.length) panel.append(el('p', 'muted', 'No external web packages — the renderer is built in.'));
+    const packageRows = packages.map(dep => {
+      const runtime = runtimeStatus(dep.name);
+      const tracked = runtime.since > 0;
+      return el('div', 'extension-dep-row',
+        el('div', 'extension-dep-head',
+          el('strong', '', dep.name),
+          el('code', 'extension-dep-version', dep.version),
+          el('span', 'extension-dep-badge ' + (dep.lazyLoad ? 'lazy' : 'bundled'), dep.lazyLoad ? 'lazy-loaded' : 'bundled'),
+          tracked ? el('span', `extension-runtime-state ${runtime.state}`, runtime.state) : null),
+        el('p', 'muted', dep.purpose));
+    });
+    panel.append(...packageRows);
+
+    panel.append(el('h3', '', 'Native Tauri capabilities'));
+    const native = extension.dependencies.tauriDependencies ?? [];
+    if (!native.length) panel.append(el('p', 'muted', 'No native dependencies — this extension runs anywhere.'));
+    const nativeRows = native.map(dep => {
+      const statusText = el('span', 'extension-capability-status', 'Checking…');
+      const detail = el('p', 'muted', dep.purpose);
+      const recheck = button('Re-check', 'refresh-cw', async () => {
+        statusText.textContent = 'Checking…';
+        statusText.className = 'extension-capability-status';
+        const status = await checkTauriCapability(dep);
+        registry.setCapabilityStatus(dep.type + ':' + dep.name, status);
+        show(status);
+      });
+      function show(status) {
+        statusText.textContent = status ? (status.available ? 'Connected' : 'Unavailable') : 'Not audited yet';
+        statusText.className = 'extension-capability-status ' + (status ? (status.available ? 'ok' : 'bad') : '');
+        detail.textContent = dep.purpose + (status ? ` — ${status.detail}` : '');
+      }
+      show(registry.capabilityFor(dep));
+      return el('div', 'extension-dep-row',
+        el('div', 'extension-dep-head',
+          el('strong', '', dep.name),
+          el('span', 'extension-dep-badge bundled', dep.type),
+          statusText, recheck),
+        detail,
+        el('p', 'muted extension-dep-fallback', `Fallback outside the desktop shell: ${dep.fallbackBehavior}.`));
+    });
+    panel.append(...nativeRows);
+
+    const unsubscribe = subscribeRuntime(status => {
+      if (!panel.isConnected) return unsubscribe();
+      const row = packageRows.find((_, index) => packages[index].name === status.name);
+      if (!row) return;
+      const head = row.querySelector('.extension-dep-head');
+      let chip = head.querySelector('.extension-runtime-state');
+      if (!chip) {
+        chip = el('span', 'extension-runtime-state');
+        head.append(chip);
+      }
+      chip.className = `extension-runtime-state ${status.state}`;
+      chip.textContent = status.state;
+    });
+    panel.addEventListener('close', unsubscribe, { once: true });
+  });
 }
 
 function showSkill(extension) {

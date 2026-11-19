@@ -516,6 +516,28 @@ audio { width: 100%; margin-top: 10px; }
 .sql-expected summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .sql-expected .sql-table-wrap { margin-top: 8px; }
 
+/* Dependency & runtime inspector */
+.extension-dep-row { border: 1px solid #2c312c; background: #191b19; padding: 8px 11px; margin-top: 8px; }
+.extension-dep-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.extension-dep-head strong { color: var(--strong); }
+.extension-dep-version { color: var(--muted); font-size: 11px; }
+.extension-dep-badge { font-size: 10px; font-weight: 620; text-transform: uppercase; letter-spacing: .05em; padding: 2px 7px; border-radius: 3px; background: #262926; color: var(--muted); }
+.extension-dep-badge.lazy { background: #32301f; color: #d9c97a; }
+.extension-dep-row p { margin-top: 4px; font-size: 12px; }
+.extension-dep-fallback { font-style: italic; }
+.extension-runtime-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.extension-runtime-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.extension-runtime-state { font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; padding: 2px 8px; border-radius: 3px; background: #262926; color: var(--muted); }
+.extension-runtime-state.loading { background: #32301f; color: #d9c97a; }
+.extension-runtime-state.warm { background: #20301f; color: var(--accent); }
+.extension-runtime-state.error { background: #3a2927; color: #e8927c; }
+.extension-capability-status { font-size: 11px; font-weight: 620; color: var(--muted); }
+.extension-capability-status.ok { color: var(--accent); }
+.extension-capability-status.bad { color: #e8927c; }
+.extension-capability-badge { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; padding: 3px 8px; border-radius: 3px; background: #32301f; color: #d9c97a; }
+.extension-capability-badge svg { width: 12px; height: 12px; }
+.extension-capability-card { border-color: #4a4433; background: #22201a; }
+
 @media (max-width: 975px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }

@@ -116,6 +116,26 @@ export function renderUnknownCard(host, id, source) {
 }
 
 /**
+ * Card for blocks whose required native capabilities are unavailable and
+ * whose declared fallback is to disable outside the desktop shell.
+ *
+ * @param {HTMLElement} host
+ * @param {Object} options
+ * @param {BucherExtension} options.extension
+ * @param {import('./dependencies.js').TauriDependency[]} options.missing
+ * @param {() => void} options.onRetry
+ */
+export function renderCapabilityCard(host, { extension, missing, onRetry }) {
+  host.replaceChildren(el('section', 'extension-fallback extension-capability-card',
+    el('div', 'extension-fallback-heading', icon(extension.icon),
+      el('strong', '', `${extension.name} — native capability unavailable`)),
+    el('p', 'muted', 'This block needs desktop capabilities that are not available in the current environment.'),
+    el('ul', 'extension-issues', ...missing.map(dep =>
+      el('li', '', el('code', '', dep.name), ' — ', dep.purpose))),
+    el('div', 'extension-fallback-actions', button('Re-check capabilities', 'refresh-cw', onRetry))));
+}
+
+/**
  * Mount an extension behind the error boundary. Synchronous mount failures are
  * caught here; extensions report async failures through `props.onError`.
  *

@@ -343,6 +343,30 @@ test('capability bridge falls back gracefully outside Tauri and stores audit res
   assert.equal(registry.capabilityFor(dependency).available, true);
 });
 
+test('runtime tracker caches loaders and reports cold/loading/warm/error', async () => {
+  const { trackRuntime, runtimeStatus, setRuntimeStatus, subscribeRuntime, allRuntimes } = require('../src/extensions/runtime');
+  assert.equal(runtimeStatus('test-engine').state, 'cold');
+  const seen = [];
+  const unsubscribe = subscribeRuntime(status => seen.push(status.state));
+  let loads = 0;
+  const loader = async () => { loads += 1; return { ok: true }; };
+  const first = await trackRuntime('test-engine', loader);
+  const second = await trackRuntime('test-engine', loader);
+  assert.equal(first, second);
+  assert.equal(loads, 1);
+  assert.equal(runtimeStatus('test-engine').state, 'warm');
+  assert.deepEqual(seen, ['loading', 'warm']);
+  await assert.rejects(trackRuntime('test-failing', async () => { throw new Error('boom'); }), /boom/);
+  assert.equal(runtimeStatus('test-failing').state, 'error');
+  assert.match(runtimeStatus('test-failing').detail, /boom/);
+  const retry = await trackRuntime('test-failing', async () => 'recovered');
+  assert.equal(retry, 'recovered');
+  assert.equal(runtimeStatus('test-failing').state, 'warm');
+  setRuntimeStatus('test-engine', 'cold', 'reset');
+  assert.ok(allRuntimes().some(status => status.name === 'test-engine'));
+  unsubscribe();
+});
+
 test('every built-in extension registers and its few-shot examples validate', () => {
   require('../src/extensions/builtins');
   const { registry } = require('../src/extensions/registry');

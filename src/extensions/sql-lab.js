@@ -17,6 +17,7 @@ import { Compartment, EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
 import { button, el, icon } from '../ui.js';
+import { trackRuntime } from './runtime.js';
 import { blockMeta, createValidator } from './validate.js';
 
 /**
@@ -306,7 +307,7 @@ function mountSqlLab(host, props) {
 
   (async () => {
     try {
-      const alasql = (await import('alasql')).default;
+      const alasql = (await trackRuntime('alasql', () => import('alasql'))).default;
       if (destroyed) return;
       newDatabase = async () => /** @type {AlaDb} */ (new alasql.Database());
       const intro = await newDatabase();

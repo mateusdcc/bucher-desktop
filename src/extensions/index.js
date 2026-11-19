@@ -12,6 +12,8 @@ export { blockKey, extensionIdFromInfo, fenceBody, fenceInfo, isExtensionInfo, p
 export { mountGuarded, renderDisabledCard, renderErrorFallback, renderUnknownCard, renderValidationFallback, showSource } from './boundary.js';
 export { hydrateExtensions } from './host.js';
 export { composeSkills, skillArgs } from './skills.js';
+export { auditCapabilities, checkTauriCapability, isTauri } from './capability.js';
+export { allRuntimes, runtimeStatus, setRuntimeStatus, subscribeRuntime, trackRuntime } from './runtime.js';
 
 /**
  * @typedef {import('./types').BucherExtension} BucherExtension

@@ -7,9 +7,10 @@
  */
 import { parse as parseYaml } from 'yaml';
 import { button, el, icon, iconButton } from '../ui.js';
+import { auditCapabilities } from './capability.js';
 import { blockKey, payloadTitle } from './keys.js';
 import {
-  mountGuarded, renderDisabledCard, renderErrorFallback, renderUnknownCard, renderValidationFallback, showSource,
+  mountGuarded, renderCapabilityCard, renderDisabledCard, renderErrorFallback, renderUnknownCard, renderValidationFallback, showSource,
 } from './boundary.js';
 
 /**
@@ -114,6 +115,24 @@ function mountBlock(placeholder, ctx, id, occurrence) {
   }
   if (!ctx.registry.isEnabled(id)) {
     renderDisabledCard(placeholder, { extension, onEnable: () => ctx.registry.setEnabled(id, true) });
+    return;
+  }
+  // Native capability gate: audited statuses decide whether the block can
+  // mount here, and whether it mounts in a degraded mode.
+  const nativeDeps = extension.dependencies.tauriDependencies ?? [];
+  const missing = nativeDeps.filter(dep => {
+    const status = ctx.registry.capabilityFor(dep);
+    return status !== null && !status.available;
+  });
+  const blocking = missing.filter(dep => dep.fallbackBehavior === 'disable-on-web');
+  if (blocking.length) {
+    renderCapabilityCard(placeholder, {
+      extension,
+      missing: blocking,
+      onRetry: () => {
+        auditCapabilities(ctx.registry).then(() => ctx.registry.notify()).catch(() => {});
+      },
+    });
     return;
   }
   /** @type {unknown} */
@@ -246,6 +265,11 @@ function mountBlock(placeholder, ctx, id, occurrence) {
     }),
     iconButton('View source and data', 'braces', () => showSource(source, currentSaved)));
   const header = el('header', 'extension-frame-header', collapse, badge, tools);
+  if (missing.length) {
+    const degraded = el('span', 'extension-capability-badge', icon('alert-triangle'), 'Degraded');
+    degraded.title = missing.map(dep => `${dep.name}: ${ctx.registry.capabilityFor(dep)?.detail ?? 'unavailable'}`).join('\n');
+    header.insertBefore(degraded, tools);
+  }
   bodyHost.hidden = collapsed.has(frameKey);
   frame.append(header, bodyHost);
   placeholder.replaceChildren(frame);
