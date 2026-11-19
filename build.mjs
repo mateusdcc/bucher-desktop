@@ -11,7 +11,7 @@ const options = {
   target: ['safari16', 'chrome105'],
   outdir: 'dist',
   assetNames: 'assets/[name]-[hash]',
-  loader: { '.woff2': 'file', '.woff': 'file', '.ttf': 'file' },
+  loader: { '.woff2': 'file', '.woff': 'file', '.ttf': 'file', '.svg': 'file' },
 };
 
 if (process.argv.includes('--serve')) {

@@ -14,11 +14,11 @@ Progress, flashcard scheduling, notes, and solution attempts stay in the same Ma
 
 Choose **Write a solution**, **New attempt**, or **Edit** to write directly in the reader. The block you are editing shows its Markdown source, while surrounding blocks render as you write. **Insert Typst** adds a fenced equation. Supported Typst equations render in the reader and other Typst code stays editable as source.
 
-The [local AI command guide](docs/local-ai.md) covers the native Ollama API for explanations, solution drafts, proof review, patch proposals, and Markdown book import.
+Under **Settings → AI**, choose a local Ollama model or connect ChatGPT in your browser and choose a ChatGPT model. Select **ChatGPT** as the AI provider to use your eligible ChatGPT plan or available credits for explanations, solutions, reviews, patches, and Markdown imports. Bücher sends the relevant text for each ChatGPT request to OpenAI. **Manage usage** opens the usage and app limits page. See the [AI command guide](docs/local-ai.md).
 
 ## Develop
 
-Install Node.js, Rust, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your platform.
+Install Node.js, Rust 1.89 or later, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your platform.
 
 ```sh
 npm ci

@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import intro from './model/intro-model';
 import { patchDiff } from './patch-view';
-import { selectedModel } from './settings';
+import { manageChatGptUsage, selectedAi } from './settings';
 import { button, el, icon, iconButton, notice } from './ui';
 
 const { stripFrontmatter } = intro;
@@ -51,7 +51,7 @@ function importPreview(draft, markdown) {
     editable(chapter, 'markdown', 'Chapter Markdown', 'markdown', text => markdown(text, '')))));
 }
 
-function requestPanel(model, options, close) {
+function requestPanel(selection, options, close) {
   const { title, scope, fields, submitLabel, request, preview, accept, acceptLabel,
     resultTitle, canAccept, closeLabel = 'Close', kind } = options;
   const heading = el('h2', '', icon('sparkles'), title);
@@ -60,6 +60,9 @@ function requestPanel(model, options, close) {
     el('div', 'ai-heading', heading, iconButton('Dismiss ' + title.toLowerCase(), 'x', close)));
   panel.setAttribute('aria-labelledby', heading.id);
   if (scope) panel.append(el('p', 'ai-scope muted', scope));
+
+  const usesChatGpt = selection.provider === 'chatgpt';
+  if (usesChatGpt) panel.append(el('div', 'ai-provider-note', el('span', 'muted', 'Using ChatGPT plan'), manageChatGptUsage()));
 
   const form = el('form', 'ai-form');
   const status = el('p', 'ai-status muted');
@@ -84,10 +87,10 @@ function requestPanel(model, options, close) {
     }
     send.disabled = true;
     for (const [, input] of inputs) input.readOnly = true;
-    status.textContent = 'Waiting for Ollama…';
+    status.textContent = usesChatGpt ? 'Waiting for ChatGPT…' : 'Waiting for Ollama…';
     status.classList.remove('error-text');
     try {
-      const response = await request(model, values);
+      const response = await request(selection, values);
       if (!panel.isConnected) return;
       const content = preview(response);
       result.replaceChildren(content);
@@ -127,11 +130,11 @@ function requestPanel(model, options, close) {
   return panel;
 }
 
-/** Mount local Ollama actions beside the passage or exercise they act on. */
+/** Mount AI actions beside the passage or exercise they act on. */
 export function createAiActions({ markdown, openSettings, openWorkspace, closeWorkspace, vault, changed, openImportedBook, readerRail }) {
   function run(host, options, afterClose) {
-    const model = selectedModel();
-    if (!model) return openSettings();
+    const selection = selectedAi();
+    if (!selection) return openSettings();
     const previous = document.activeElement;
     const close = () => {
       if (!host.contains(panel) || !panel.isConnected) return;
@@ -139,7 +142,7 @@ export function createAiActions({ markdown, openSettings, openWorkspace, closeWo
       if (previous?.isConnected) previous.focus({ preventScroll: true });
       return afterClose?.();
     };
-    const panel = requestPanel(model, options, close);
+    const panel = requestPanel(selection, options, close);
     host.replaceChildren(panel);
     const inRail = host === readerRail;
     if (inRail) host.scrollTop = 0;
@@ -152,7 +155,7 @@ export function createAiActions({ markdown, openSettings, openWorkspace, closeWo
       run(host, {
         title: 'Explain with AI', scope, kind: 'ai-explanation', submitLabel: 'Explain',
         fields: [{ ...prompt('question', 'Question'), fitContent: true }],
-        request: (model, { question }) => invoke('ai_explain', { model, question, context }),
+        request: (selection, { question }) => invoke('ai_explain', { ...selection, question, context }),
         preview: text => markdown(text, path),
       });
     },
@@ -164,7 +167,7 @@ export function createAiActions({ markdown, openSettings, openWorkspace, closeWo
         title: 'Propose a patch', scope, kind: 'patch-rail', submitLabel: 'Generate patch',
         resultTitle: 'Review patch', closeLabel: 'Discard',
         fields: [prompt('instructions', 'What should change?')],
-        request: (model, { instructions }) => invoke('ai_propose_patch', { model, instructions, markdown: original }),
+        request: (selection, { instructions }) => invoke('ai_propose_patch', { ...selection, instructions, markdown: original }),
         preview: patch => {
           if (patch.original !== original) throw new Error('The patch does not match the original Markdown.');
           return patchDiff(patch);
@@ -185,7 +188,7 @@ export function createAiActions({ markdown, openSettings, openWorkspace, closeWo
       run(host, {
         title: 'Generate a solution', scope, kind: 'exercise-ai-panel', submitLabel: 'Generate solution',
         fields: [prompt('instructions', 'Instructions (optional)', false)],
-        request: (model, { instructions }) => invoke('ai_generate_solution', { model, exercise, context, instructions }),
+        request: (selection, { instructions }) => invoke('ai_generate_solution', { ...selection, exercise, context, instructions }),
         preview: text => markdown(text, path),
         acceptLabel: 'Save as AI solution',
         accept: save,
@@ -195,18 +198,18 @@ export function createAiActions({ markdown, openSettings, openWorkspace, closeWo
       run(readerRail, {
         title: 'Review attempt with AI', scope, kind: 'review-rail', submitLabel: 'Review attempt',
         fields: [],
-        request: model => invoke('ai_review_solution', { model, exercise, attempt, rubric }),
+        request: selection => invoke('ai_review_solution', { ...selection, exercise, attempt, rubric }),
         preview: text => markdown(text, path),
       });
     },
     async importBook() {
-      if (!selectedModel()) return openSettings();
+      if (!selectedAi()) return openSettings();
       const host = el('div', 'import-host');
       await openWorkspace(el('div', 'page ai-import-page', el('h1', 'page-title', 'Import a book'), host));
       run(host, {
         title: 'Prepare from Markdown', kind: 'ai-import', submitLabel: 'Prepare draft', resultTitle: 'Review draft',
         fields: [{ name: 'title', label: 'Book title', required: true }, prompt('markdown', 'Source Markdown')],
-        request: (model, source) => invoke('ai_prepare_import', { model, ...source }),
+        request: (selection, source) => invoke('ai_prepare_import', { ...selection, ...source }),
         preview: draft => importPreview(draft, markdown),
         acceptLabel: 'Import book',
         accept: async draft => openImportedBook(await invoke('ai_import_book', { draft })),

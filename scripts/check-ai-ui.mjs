@@ -46,8 +46,34 @@ async function setup() {
         if (command === 'ai_ollama_status') return window.fixtureOnline
           ? { installed: true, connected: true, models: ['qwen3:4b', 'gemma4:12b'] }
           : { installed: true, connected: false, models: [], error: 'Start Ollama and try again.' };
-        if (command.startsWith('ai_') && command !== 'ai_import_book' && args.model !== 'qwen3:4b') {
-          throw new Error('Wrong model selected');
+        if (command === 'chatgpt_status') {
+          return JSON.parse(localStorage.getItem('fixture-chatgpt') || '{"state":"unregistered"}');
+        }
+        if (command === 'chatgpt_login') {
+          const result = await new Promise(resolve => { window.fixtureFinishLogin = resolve; });
+          localStorage.setItem('fixture-chatgpt', JSON.stringify(result));
+          return result;
+        }
+        if (command === 'chatgpt_models') return [
+          { slug: 'fixture-chatgpt-model', display_name: 'Example ChatGPT model' },
+          { slug: 'another-model', display_name: 'Another ChatGPT model' },
+        ];
+        if (command === 'chatgpt_logout') {
+          localStorage.setItem('fixture-chatgpt', '{"state":"signed-out","email":"reader@example.com"}');
+          return;
+        }
+        if (command === 'chatgpt_usage') {
+          window.fixtureUsageOpened = true;
+          return;
+        }
+        if (command.startsWith('ai_') && command !== 'ai_import_book') {
+          if (args.provider === 'chatgpt' && args.model === 'fixture-chatgpt-model') {
+            window.fixtureChatGptRequests = (window.fixtureChatGptRequests ?? 0) + 1;
+            window.fixtureReasoningEffort = args.reasoningEffort;
+            if (window.fixtureUsageLimit) throw new Error('ChatGPT usage limit reached. Open Manage usage to see your plan and app limits.');
+          } else if (args.provider !== 'ollama' || args.model !== 'qwen3:4b') {
+            throw new Error('Wrong provider or model selected');
+          }
         }
         if (command === 'ai_explain') {
           if (!args.context.includes('abelian group')) throw new Error('Missing chapter context');
@@ -121,6 +147,84 @@ async function shot(page, name) {
 }
 
 const scenarios = {
+  async chatgpt(page) {
+    await button(page, 'Settings').click();
+    await button(page, 'AI').click();
+    const provider = page.getByLabel('AI provider');
+    assert.equal(await provider.inputValue(), 'ollama');
+    await provider.selectOption('chatgpt');
+    await page.getByText('Signed out', { exact: true }).waitFor();
+    await shot(page, 'chatgpt-01-settings');
+    await button(page, 'Continue with ChatGPT').click();
+    await page.getByRole('status').filter({ hasText: 'Finish signing in with ChatGPT in your browser.' }).waitFor();
+    assert.ok(await button(page, 'Continue with ChatGPT').isDisabled());
+    await shot(page, 'chatgpt-02-browser-pending');
+    await page.evaluate(() => window.fixtureFinishLogin({ state: 'connected', email: 'reader@example.com' }));
+    await page.getByRole('dialog', { name: 'You’re using your ChatGPT plan' }).waitFor();
+    await shot(page, 'chatgpt-03-plan-confirmed');
+    await button(page, 'Got it').click();
+    const model = page.getByLabel('ChatGPT model');
+    const reasoning = page.getByLabel('Reasoning level');
+    await model.selectOption('fixture-chatgpt-model');
+    await page.getByText('Signed in · reader@example.com', { exact: true }).waitFor();
+    assert.equal(await reasoning.inputValue(), '');
+    await shot(page, 'chatgpt-04-model');
+    await reasoning.selectOption('high');
+    await model.selectOption('another-model');
+    assert.equal(await reasoning.inputValue(), '');
+    await model.selectOption('fixture-chatgpt-model');
+    assert.equal(await reasoning.inputValue(), 'high');
+    await shot(page, 'chatgpt-04-reasoning');
+    await page.reload();
+    await button(page, 'Settings').click();
+    await button(page, 'AI').click();
+    await page.getByLabel('ChatGPT model').locator('option[value=fixture-chatgpt-model]').waitFor({ state: 'attached' });
+    assert.equal(await provider.inputValue(), 'chatgpt');
+    assert.equal(await model.inputValue(), 'fixture-chatgpt-model');
+    assert.equal(await reasoning.inputValue(), 'high');
+    await button(page, 'Back to reader').click();
+    await button(page, 'Start reading').click();
+    const explain = async () => {
+      await button(page, 'Explain Vector space with AI').click();
+      await page.getByText('Using ChatGPT plan', { exact: true }).waitFor();
+      await page.getByLabel('Question', { exact: true }).fill('How do addition and scalar multiplication work together?');
+      await button(page, 'Explain').click();
+    };
+    await explain();
+    await page.getByRole('heading', { name: 'Two structures, one space' }).waitFor();
+    assert.equal(await page.evaluate(() => window.fixtureChatGptRequests), 1);
+    assert.equal(await page.evaluate(() => window.fixtureReasoningEffort), 'high');
+    await shot(page, 'chatgpt-05-explained');
+    await page.evaluate(() => { window.fixtureUsageLimit = true; });
+    await explain();
+    await page.getByRole('status').filter({ hasText: 'ChatGPT usage limit reached' }).waitFor();
+    await shot(page, 'chatgpt-06-limited');
+    await button(page, 'Manage usage').click();
+    assert.equal(await page.evaluate(() => window.fixtureUsageOpened), true);
+    await button(page, 'Settings').click();
+    await button(page, 'AI').click();
+    await button(page, 'Sign out').click();
+    await page.getByText('Signed out · reader@example.com', { exact: true }).waitFor();
+    assert.equal(await model.isVisible(), false);
+    assert.equal(await reasoning.isVisible(), false);
+    assert.equal(await page.evaluate(() => localStorage.getItem('bucher/chatgpt-model')), null);
+    await shot(page, 'chatgpt-07-signed-out');
+  },
+  async chatgptWithoutConsent(page) {
+    await button(page, 'Settings').click();
+    await button(page, 'AI').click();
+    await page.getByLabel('AI provider').selectOption('chatgpt');
+    await page.getByText('Signed out', { exact: true }).waitFor();
+    await shot(page, 'chatgpt-consent-01-settings');
+    await button(page, 'Continue with ChatGPT').click();
+    await page.evaluate(() => window.fixtureFinishLogin({ state: 'plan-disabled', email: 'reader@example.com' }));
+    await page.getByText('Plan usage is off · reader@example.com', { exact: true }).waitFor();
+    assert.ok(await button(page, 'Enable plan usage').isVisible());
+    assert.equal(await page.getByLabel('ChatGPT model').isVisible(), false);
+    assert.equal(await page.getByLabel('Reasoning level').isVisible(), false);
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    await shot(page, 'chatgpt-consent-02-disabled');
+  },
   async settings(page) {
     await shot(page, 'settings-01-library');
     await button(page, 'Settings').click();

@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod ai;
+mod chatgpt;
 mod library;
 
 use library::{Entry, ImportReport};
@@ -86,6 +87,11 @@ fn main() {
             import_books,
             save_markdown,
             discard_solution,
+            chatgpt::chatgpt_login,
+            chatgpt::chatgpt_status,
+            chatgpt::chatgpt_logout,
+            chatgpt::chatgpt_models,
+            chatgpt::chatgpt_usage,
             ai::ai_list_models,
             ai::ai_ollama_status,
             ai::ai_explain,

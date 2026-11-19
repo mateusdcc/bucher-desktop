@@ -253,10 +253,18 @@ button svg { color: var(--muted); }
 .settings-check { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .settings-check button { flex: 0 0 auto; }
 .settings-message { flex: 1; font-size: 12px; }
-.ollama-settings { padding-top: 0; }
-.ollama-settings summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px 0; font-weight: 590; }
-.ollama-settings summary svg { width: 15px; height: 15px; color: var(--muted); }
-.ollama-settings[open] summary svg { transform: rotate(90deg); }
+.settings-provider { max-width: 230px; }
+.provider-settings { padding-top: 0; }
+.provider-settings summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px 0; font-weight: 590; }
+.provider-settings summary svg { width: 15px; height: 15px; color: var(--muted); }
+.provider-settings[open] summary svg { transform: rotate(90deg); }
+.chatgpt-settings > .muted { font-size: 13px; line-height: 1.5; }
+.settings-account { margin-top: 12px; overflow-wrap: anywhere; }
+.settings-chatgpt-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.chatgpt-login-button, .chatgpt-login-button:hover { min-height: 40px; padding: 0 12px; background: #000; color: #fff; }
+.chatgpt-login-button::before { content: ''; width: 21px; height: 21px; background: url('./assets/chatgpt-logo-white.svg') center / contain no-repeat; }
+.ai-provider-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 4px 0; font-size: 12px; }
+.ai-provider-note button { color: var(--accent); padding-inline: 4px; }
 .reader-rail:empty, .explanation-anchor:empty, .solution-ai:empty, .solution-actions:empty { display: none; }
 .ai-panel { min-width: 0; }
 .ai-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
