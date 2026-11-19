@@ -560,6 +560,27 @@ audio { width: 100%; margin-top: 10px; }
 .igraph-note { margin-top: 6px; font-size: 13px; }
 .igraph-note .markdown > :first-child { margin-top: 0; }
 
+/* ext-desmos-lab */
+.desmos-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 8px; }
+.desmos-legend-item { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; }
+.desmos-swatch { width: 14px; height: 4px; border-radius: 2px; flex: none; }
+.desmos-tex .katex { font-size: 1.02em; }
+.desmos-area-value { font-size: 11px; }
+.desmos-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.desmos-t { font-size: 12px; min-width: 70px; }
+.desmos-hint { font-size: 12px; margin-left: auto; }
+.desmos-wrap { position: relative; border: 1px solid #2c312c; background: #161816; }
+.desmos-wrap.dragging { cursor: grabbing; }
+.desmos-canvas { display: block; width: 100%; touch-action: none; cursor: crosshair; }
+.desmos-readout { position: absolute; top: 8px; right: 8px; background: #1b1d1bdd; border: 1px solid #2c312c; padding: 6px 9px; font-size: 12px; white-space: pre; pointer-events: none; color: var(--strong); }
+.desmos-challenge { margin-top: 8px; font-size: 12.5px; color: #e8927c; }
+.desmos-challenge[data-state="passed"] { color: #73d695; }
+.desmos-sliders { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 18px; margin-top: 10px; }
+.desmos-param { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.desmos-param-name { min-width: 18px; color: var(--strong); font-style: italic; font-family: Spectral, serif; }
+.desmos-param-slider { flex: 1; accent-color: var(--accent); }
+.desmos-param-value { min-width: 48px; text-align: right; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
 @media (max-width: 975px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }

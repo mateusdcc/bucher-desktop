@@ -390,6 +390,24 @@ test('interactive-graph schema enforces graph and exercise invariants', () => {
   assert.equal(interactiveGraphExtension.validate(classifyOk).ok, true);
 });
 
+test('desmos-lab schema enforces challenge and draggable invariants', () => {
+  const { desmosLabExtension } = require('../src/extensions/desmos-lab');
+  const base = {
+    id: 'd', curves: [{ kind: 'function', expr: 'm*x + b' }],
+    params: [{ name: 'm', min: -4, max: 4 }, { name: 'b', min: -4, max: 6 }],
+  };
+  assert.equal(desmosLabExtension.validate(base).ok, true);
+  assert.equal(desmosLabExtension.validate({ ...base, mode: 'challenge' }).ok, false);
+  const challenge = { ...base, mode: 'challenge', targets: [{ x: 1, y: 2 }, { x: 3, y: 4 }] };
+  assert.equal(desmosLabExtension.validate(challenge).ok, true);
+  assert.equal(desmosLabExtension.validate({ ...base, draggables: [{ paramX: 'ghost' }] }).ok, false);
+  assert.equal(desmosLabExtension.validate({ ...base, draggables: [{ paramY: 'b', x: 0 }] }).ok, true);
+  assert.equal(desmosLabExtension.validate({ ...base, curves: [{ kind: 'parametric', xExpr: 'cos(t)' }] }).ok, false);
+  const parametric = { ...base, curves: [{ kind: 'parametric', xExpr: 'cos(t)', yExpr: 'sin(t)' }] };
+  assert.equal(desmosLabExtension.validate(parametric).ok, true);
+  assert.equal(desmosLabExtension.validate({ ...parametric, mode: 'challenge', targets: [{ x: 1, y: 2 }], challengeCurve: 0 }).ok, false);
+});
+
 test('every built-in extension registers and its few-shot examples validate', () => {
   require('../src/extensions/builtins');
   const { registry } = require('../src/extensions/registry');

@@ -12,6 +12,7 @@ import { codeLabExtension } from './code-lab/code-lab.js';
 import { parsonsExtension } from './parsons-puzzle.js';
 import { sqlLabExtension } from './sql-lab.js';
 import { interactiveGraphExtension } from './interactive-graph.js';
+import { desmosLabExtension } from './desmos-lab.js';
 
 registry.register(mermaidExtension);
 registry.register(mathPlotExtension);
@@ -20,3 +21,4 @@ registry.register(codeLabExtension);
 registry.register(parsonsExtension);
 registry.register(sqlLabExtension);
 registry.register(interactiveGraphExtension);
+registry.register(desmosLabExtension);

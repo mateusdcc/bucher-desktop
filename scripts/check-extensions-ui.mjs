@@ -355,6 +355,75 @@ exercise:
 \`\`\`
 `;
 
+const desmosChapter = `---
+name: Desmos Studio
+order: 8
+---
+
+# Desmos Studio
+
+Drag the vertex:
+
+\`\`\`ext-desmos-lab
+id: desmos-vertex
+title: Drag the vertex of a parabola
+mode: explore
+xRange: [-6, 6]
+yRange: [-4, 8]
+curves:
+  - kind: function
+    expr: a*(x-h)^2 + k
+    label: f(x)
+    tangent: true
+    area: { from: 0, to: 2 }
+params:
+  - { name: a, min: -3, max: 3, step: 0.1, value: 1 }
+  - { name: h, min: -4, max: 4, step: 0.1, value: 0 }
+  - { name: k, min: -3, max: 5, step: 0.1, value: 0 }
+draggables:
+  - { paramX: h, paramY: k, label: vertex, color: "#e8d06f" }
+\`\`\`
+
+A travelling wave:
+
+\`\`\`ext-desmos-lab
+id: desmos-wave
+title: Travelling wave
+mode: explore
+xRange: [-6, 6]
+yRange: [-2, 2]
+curves:
+  - kind: function
+    expr: sin(x - t)
+    label: sin(x - t)
+animate: { min: 0, max: 6.283185, speed: 2 }
+\`\`\`
+
+Fit the line:
+
+\`\`\`ext-desmos-lab
+id: desmos-fit-line
+title: Fit the line through P1 and P2
+mode: challenge
+xRange: [-1, 5]
+yRange: [-1, 7]
+curves:
+  - kind: function
+    expr: m*x + b
+    label: y = m x + b
+    color: "#73d695"
+params:
+  - { name: m, min: -4, max: 4, step: 0.05, value: 0 }
+  - { name: b, min: -4, max: 6, step: 0.05, value: 0 }
+draggables:
+  - { paramY: b, x: 0, label: intercept, color: "#6fb7e8" }
+targets:
+  - { x: 1, y: 2, tolerance: 0.15, label: P1 }
+  - { x: 3, y: 4, tolerance: 0.15, label: P2 }
+challengeCurve: 0
+\`\`\`
+`;
+
 const fixtureEntries = [
   { path: 'Buches/Extension Lab/_index.md', source: labIndex },
   { path: 'Buches/Extension Lab/concepts/Diagrams.md', source: diagramsChapter },
@@ -364,6 +433,7 @@ const fixtureEntries = [
   { path: 'Buches/Extension Lab/concepts/Parsons.md', source: parsonsChapter },
   { path: 'Buches/Extension Lab/concepts/SQL Lab.md', source: sqlLabChapter },
   { path: 'Buches/Extension Lab/concepts/Graphs.md', source: graphsChapter },
+  { path: 'Buches/Extension Lab/concepts/Desmos Studio.md', source: desmosChapter },
 ];
 
 const browser = await chromium.launch(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' });
@@ -984,6 +1054,78 @@ const scenarios = {
       '.extension-frame[data-block-key="id:graph-wire"] .react-flow__edge').length === 3, null, { timeout: 10000 });
     assert.equal(await wire.locator('.react-flow__edge').count(), 3);
     assert.equal(await classify.locator('.extension-badge').textContent(), 'Passed');
+  },
+  async desmosLab(page) {
+    await openChapter(page, 'Desmos Studio');
+    const vertex = page.locator('.extension-frame[data-block-key="id:desmos-vertex"]');
+    await vertex.scrollIntoViewIfNeeded();
+    await vertex.locator('.desmos-canvas').waitFor({ timeout: 30000 });
+    // KaTeX legend + live integral value (∫₀² x² dx = 8/3).
+    assert.ok(await vertex.locator('.desmos-tex .katex').count() >= 1);
+    await vertex.locator('.desmos-area-value', { hasText: '2.66667' }).waitFor();
+
+    // Drag the vertex point from (0,0) to (2,3): h/k sliders must follow.
+    const canvasBox = await vertex.locator('.desmos-canvas').boundingBox();
+    assert.ok(canvasBox);
+    const toScreen = (wx, wy) => ({
+      x: canvasBox.x + (wx + 6) / 12 * canvasBox.width,
+      y: canvasBox.y + (1 - (wy + 4) / 12) * canvasBox.height,
+    });
+    const start = toScreen(0, 0);
+    const end = toScreen(2, 3);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForFunction(() => {
+      const frame = document.querySelector('.extension-frame[data-block-key="id:desmos-vertex"]');
+      return frame?.querySelector('input[aria-label="Parameter h"]')?.value === '2'
+        && frame?.querySelector('input[aria-label="Parameter k"]')?.value === '3';
+    }, null, { timeout: 5000 });
+    await shot(page, 'desmos-01-vertex-drag');
+
+    // Tangent scrubbing: f(x)=(x-2)²+3 has slope -4 at x=0.
+    const hover = toScreen(0, 2);
+    await page.mouse.move(hover.x, hover.y);
+    await vertex.locator('.desmos-readout', { hasText: 'slope -4' }).waitFor();
+    await shot(page, 'desmos-02-tangent');
+
+    // Animation: play advances t, pause freezes it.
+    const wave = page.locator('.extension-frame[data-block-key="id:desmos-wave"]');
+    await wave.scrollIntoViewIfNeeded();
+    await wave.locator('.desmos-canvas').waitFor();
+    await wave.getByRole('button', { name: 'Play animation' }).click();
+    await page.waitForTimeout(800);
+    const tText = await wave.locator('.desmos-t').textContent();
+    const tValue = Number(tText.replace('t = ', ''));
+    assert.ok(tValue > 0.5, `t should advance, got ${tText}`);
+    await wave.getByRole('button', { name: 'Pause animation' }).click();
+    const frozen = await wave.locator('.desmos-t').textContent();
+    await page.waitForTimeout(350);
+    assert.equal(await wave.locator('.desmos-t').textContent(), frozen);
+
+    // Challenge: fit y = m x + b through (1,2) and (3,4) → m=1, b=1.
+    const fit = page.locator('.extension-frame[data-block-key="id:desmos-fit-line"]');
+    await fit.scrollIntoViewIfNeeded();
+    await fit.locator('.desmos-canvas').waitFor();
+    assert.equal(await fit.locator('.extension-badge').textContent(), 'Unsolved');
+    assert.match(await fit.locator('.desmos-challenge').textContent(), /P1: Δ/);
+    const setParam = (name, value) => fit.locator(`input[aria-label="Parameter ${name}"]`)
+      .evaluate((input, v) => { input.value = v; input.dispatchEvent(new Event('input', { bubbles: true })); }, value);
+    await setParam('m', '1');
+    await setParam('b', '1');
+    await fit.locator('.extension-badge[data-status="passed"]').waitFor();
+    assert.equal(await fit.locator('.desmos-challenge').getAttribute('data-state'), 'passed');
+    await shot(page, 'desmos-03-challenge-passed');
+
+    // Progress survives reload.
+    await page.waitForTimeout(650);
+    await page.reload();
+    await page.locator('article h1.page-title', { hasText: 'Desmos Studio' }).waitFor();
+    await fit.scrollIntoViewIfNeeded();
+    await fit.locator('.desmos-canvas').waitFor({ timeout: 30000 });
+    assert.equal(await fit.locator('.extension-badge').textContent(), 'Passed');
+    assert.equal(await fit.locator('input[aria-label="Parameter m"]').inputValue(), '1');
   },
 };
 
