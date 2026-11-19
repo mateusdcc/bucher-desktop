@@ -280,6 +280,18 @@ test('code-lab worker runs tests, captures console, and shadows dangerous global
   assert.match(injected.error, /invalid function name/);
 });
 
+test('sql-lab row grading compares multisets unless order is required', () => {
+  const { rowsMatch } = require('../src/extensions/sql-lab');
+  const expected = [{ title: 'Dune', year: 1965 }, { title: 'Foundation', year: 1951 }];
+  assert.equal(rowsMatch([expected[1], expected[0]], expected, false), true);
+  assert.equal(rowsMatch([expected[1], expected[0]], expected, true), false);
+  assert.equal(rowsMatch(expected, expected, true), true);
+  assert.equal(rowsMatch([expected[0]], expected, false), false);
+  assert.equal(rowsMatch([expected[0], expected[0]], expected, false), false);
+  assert.equal(rowsMatch([{ year: 1965, title: 'Dune' }, { title: 'Foundation', year: 1951 }], expected, false), true);
+  assert.equal(rowsMatch([{ title: 'Dune' }, { title: 'Foundation' }], expected, false), false);
+});
+
 test('every built-in extension registers and its few-shot examples validate', () => {
   require('../src/extensions/builtins');
   const { registry } = require('../src/extensions/registry');

@@ -252,6 +252,34 @@ lines:
 \`\`\`
 `;
 
+const sqlLabChapter = `---
+name: SQL Lab
+order: 6
+---
+
+# SQL Lab
+
+Query the library:
+
+\`\`\`ext-sql-lab
+id: sql-where
+title: Early science fiction
+prompt: |
+  List the \`title\` of every book published before 1970.
+setup: |
+  CREATE TABLE books (id INT, title STRING, year INT);
+  INSERT INTO books VALUES (1, 'Dune', 1965);
+  INSERT INTO books VALUES (2, 'Neuromancer', 1984);
+  INSERT INTO books VALUES (3, 'Foundation', 1951);
+  INSERT INTO books VALUES (4, 'Snow Crash', 1992);
+starter: |
+  SELECT title FROM books
+expected:
+  - { title: Dune }
+  - { title: Foundation }
+\`\`\`
+`;
+
 const fixtureEntries = [
   { path: 'Buches/Extension Lab/_index.md', source: labIndex },
   { path: 'Buches/Extension Lab/concepts/Diagrams.md', source: diagramsChapter },
@@ -259,6 +287,7 @@ const fixtureEntries = [
   { path: 'Buches/Extension Lab/concepts/Steppers.md', source: steppersChapter },
   { path: 'Buches/Extension Lab/concepts/Code Lab.md', source: codeLabChapter },
   { path: 'Buches/Extension Lab/concepts/Parsons.md', source: parsonsChapter },
+  { path: 'Buches/Extension Lab/concepts/SQL Lab.md', source: sqlLabChapter },
 ];
 
 const browser = await chromium.launch(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' });
@@ -612,6 +641,52 @@ const scenarios = {
     assert.equal(await indent.locator('.parsons-summary').textContent(), 'Correct — well done!');
     await indent.locator('.extension-badge[data-status="passed"]').waitFor();
     await shot(page, 'parsons-04-indent');
+  },
+  async sqlLab(page) {
+    await openChapter(page, 'SQL Lab');
+    const frame = page.locator('.extension-frame[data-extension="ext-sql-lab"][data-block-key="id:sql-where"]');
+    await frame.locator('.sql-table-chip', { hasText: 'books' }).waitFor({ timeout: 20000 });
+    assert.match(await frame.locator('.cm-content').textContent(), /SELECT title FROM books/);
+    await shot(page, 'sql-01-starter');
+
+    // The starter returns too many rows: graded fail with a result table.
+    await frame.getByRole('button', { name: 'Run query' }).click();
+    await frame.locator('.sql-verdict.fail').waitFor();
+    assert.match(await frame.locator('.sql-verdict').textContent(), /4 rows; expected 2/);
+    assert.equal(await frame.locator('.sql-result .sql-table tbody tr').count(), 4);
+    assert.equal(await frame.locator('.extension-badge').textContent(), 'In Progress');
+    await shot(page, 'sql-02-fail');
+
+    // Correct query passes and completes the exercise.
+    await frame.locator('.cm-content').click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText('SELECT title FROM books WHERE year < 1970');
+    await frame.getByRole('button', { name: 'Run query' }).click();
+    await frame.locator('.sql-verdict.pass').waitFor();
+    assert.equal(await frame.locator('.sql-result .sql-table tbody tr').count(), 2);
+    await frame.locator('.extension-badge[data-status="passed"]').waitFor();
+    await page.getByRole('button', { name: 'Solved', exact: true }).first().waitFor();
+    await shot(page, 'sql-03-pass');
+
+    // Query and verdict survive reload.
+    await page.waitForTimeout(650);
+    await page.reload();
+    await page.locator('article h1.page-title', { hasText: 'SQL Lab' }).waitFor();
+    await frame.locator('.cm-content').waitFor();
+    assert.match(await frame.locator('.cm-content').textContent(), /WHERE year < 1970/);
+    await frame.locator('.sql-verdict.pass').waitFor();
+
+    // Broken SQL surfaces an error verdict, not a crash.
+    await frame.locator('.cm-content').click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText('SELECT FROM WHERE');
+    await frame.getByRole('button', { name: 'Run query' }).click();
+    await frame.locator('.sql-verdict.error').waitFor();
+    await shot(page, 'sql-04-error');
+
+    // Expected result can be revealed for study.
+    await frame.locator('.sql-expected summary').click();
+    assert.equal(await frame.locator('.sql-expected .sql-table tbody tr').count(), 2);
   },
 };
 
