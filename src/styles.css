@@ -581,6 +581,48 @@ audio { width: 100%; margin-top: 10px; }
 .desmos-param-slider { flex: 1; accent-color: var(--accent); }
 .desmos-param-value { min-width: 48px; text-align: right; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 
+/* ext-polyglot-studio */
+.poly-description { margin-bottom: 10px; font-size: 13.5px; }
+.poly-description > :first-child { margin-top: 0; }
+.poly-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.poly-tabs { display: flex; gap: 2px; border: 1px solid #2c312c; border-radius: 6px; overflow: hidden; }
+.poly-tabs button { border: none; border-radius: 0; background: transparent; padding: 5px 12px; font-size: 12.5px; }
+.poly-tabs button.active { background: #2c312c; color: var(--strong); }
+.poly-language { font-size: 11.5px; }
+.poly-timer { font-size: 12px; min-width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
+.poly-run { margin-left: auto; }
+.poly-editor { border: 1px solid #2c312c; }
+.poly-editor .cm-editor { font-size: 13px; }
+.poly-editor .cm-editor.cm-focused { outline: none; }
+.poly-tests { display: flex; flex-direction: column; gap: 6px; border: 1px solid #2c312c; background: #191b19; padding: 10px 12px; min-height: 120px; }
+.poly-test-spec { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; }
+.poly-test-spec code { color: var(--strong); }
+.poly-test-spec.pass .poly-test-mark { color: #73d695; }
+.poly-test-spec.fail .poly-test-mark { color: #e8927c; }
+.poly-test-name { margin-left: auto; font-size: 11px; }
+.poly-hints { margin: 0; border: 1px solid #2c312c; background: #191b19; padding: 10px 12px 10px 30px; font-size: 13px; display: flex; flex-direction: column; gap: 6px; min-height: 120px; }
+.poly-fatal { border: 1px solid #5a3a30; background: #2a1f1b; color: #e8927c; padding: 10px 12px; font-size: 12px; white-space: pre-wrap; margin-top: 8px; }
+.poly-results { margin-top: 10px; border: 1px solid #2c312c; background: #191b19; }
+.poly-results-head { display: flex; align-items: baseline; gap: 12px; padding: 8px 12px; border-bottom: 1px solid #2c312c; font-size: 13px; }
+.poly-results-head strong { color: var(--strong); }
+.poly-results-head .muted { font-size: 11.5px; margin-left: auto; }
+.poly-result { padding: 7px 12px; border-bottom: 1px solid #232623; font-size: 12.5px; }
+.poly-result:last-child { border-bottom: none; }
+.poly-result-head { display: flex; justify-content: space-between; gap: 10px; }
+.poly-result.pass .poly-result-head span:first-child { color: #73d695; }
+.poly-result.fail .poly-result-head span:first-child { color: #e8927c; }
+.poly-error { margin: 6px 0 0; padding: 6px 9px; background: #211a17; border: 1px solid #3a2c26; color: #e8a86f; font-size: 11.5px; white-space: pre-wrap; }
+.poly-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+.poly-diff > div { padding: 5px 9px; font-size: 11.5px; display: flex; flex-direction: column; gap: 2px; }
+.poly-diff span { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; opacity: .75; }
+.poly-diff-expected { background: #1a241c; border: 1px solid #2c4030; color: #73d695; }
+.poly-diff-actual { background: #241a1a; border: 1px solid #402c2c; color: #e8927c; }
+.poly-diff code { white-space: pre-wrap; word-break: break-word; }
+.poly-console { margin-top: 10px; border: 1px solid #2c312c; background: #141614; padding: 8px 12px; font-family: ui-monospace, monospace; font-size: 12px; max-height: 160px; overflow: auto; }
+.poly-console-head { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+.poly-log { white-space: pre-wrap; color: #c9cbc4; }
+.poly-log.error { color: #e8927c; }
+
 @media (max-width: 975px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }

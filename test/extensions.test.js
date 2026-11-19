@@ -408,6 +408,19 @@ test('desmos-lab schema enforces challenge and draggable invariants', () => {
   assert.equal(desmosLabExtension.validate({ ...parametric, mode: 'challenge', targets: [{ x: 1, y: 2 }], challengeCurve: 0 }).ok, false);
 });
 
+test('polyglot-studio schema enforces test and language invariants', () => {
+  const { polyglotStudioExtension } = require('../src/extensions/polyglot-studio');
+  const base = {
+    id: 'p', language: 'python', starter: 'def f(x):\n    pass\n',
+    tests: [{ name: 't', fn: 'f', args: [1], expected: 2 }],
+  };
+  assert.equal(polyglotStudioExtension.validate(base).ok, true);
+  assert.equal(polyglotStudioExtension.validate({ ...base, language: 'ruby' }).ok, false);
+  assert.equal(polyglotStudioExtension.validate({ ...base, tests: [] }).ok, false);
+  assert.equal(polyglotStudioExtension.validate({ ...base, tests: [{ name: 't', fn: 'not an identifier', expected: 1 }] }).ok, false);
+  assert.equal(polyglotStudioExtension.validate({ ...base, language: 'javascript', starter: 'function f(x){return x+1;}' }).ok, true);
+});
+
 test('every built-in extension registers and its few-shot examples validate', () => {
   require('../src/extensions/builtins');
   const { registry } = require('../src/extensions/registry');

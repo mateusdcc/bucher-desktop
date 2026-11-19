@@ -13,6 +13,7 @@ import { parsonsExtension } from './parsons-puzzle.js';
 import { sqlLabExtension } from './sql-lab.js';
 import { interactiveGraphExtension } from './interactive-graph.js';
 import { desmosLabExtension } from './desmos-lab.js';
+import { polyglotStudioExtension } from './polyglot-studio.js';
 
 registry.register(mermaidExtension);
 registry.register(mathPlotExtension);
@@ -22,3 +23,4 @@ registry.register(parsonsExtension);
 registry.register(sqlLabExtension);
 registry.register(interactiveGraphExtension);
 registry.register(desmosLabExtension);
+registry.register(polyglotStudioExtension);

@@ -424,6 +424,65 @@ challengeCurve: 0
 \`\`\`
 `;
 
+const polyglotChapter = `---
+name: Polyglot Studio
+order: 9
+---
+
+# Polyglot Studio
+
+Python exercise:
+
+\`\`\`ext-polyglot-studio
+id: poly-two-sum
+title: "Two Sum (Python)"
+language: python
+description: |
+  Return the **indices** of the two numbers in \`nums\` that add up to
+  \`target\` (ascending order). Exactly one solution exists.
+starter: |
+  print("sandbox ready")
+  def two_sum(nums, target):
+      # Return the two indices whose values sum to target.
+      pass
+tests:
+  - name: basic pair
+    fn: two_sum
+    args: [[2, 7, 11, 15], 9]
+    expected: [0, 1]
+  - name: middle pair
+    fn: two_sum
+    args: [[3, 2, 4], 6]
+    expected: [1, 2]
+  - name: negatives (hidden)
+    fn: two_sum
+    args: [[-3, 4, 3, 90], 0]
+    expected: [0, 2]
+    hidden: true
+hints:
+  - A brute-force double loop works in O(n²).
+  - Store seen values in a dict mapping value → index.
+\`\`\`
+
+JavaScript exercise:
+
+\`\`\`ext-polyglot-studio
+id: poly-fib
+title: "Fibonacci (JavaScript)"
+language: javascript
+description: Return the n-th Fibonacci number (0-indexed), iteratively.
+starter: |
+  function fib(n) {
+    return 0;
+  }
+tests:
+  - { name: zero, fn: fib, args: [0], expected: 0 }
+  - { name: one, fn: fib, args: [1], expected: 1 }
+  - { name: ten, fn: fib, args: [10], expected: 55 }
+  - { name: large (hidden), fn: fib, args: [50], expected: 12586269025, hidden: true }
+\`\`\`
+`;
+
 const fixtureEntries = [
   { path: 'Buches/Extension Lab/_index.md', source: labIndex },
   { path: 'Buches/Extension Lab/concepts/Diagrams.md', source: diagramsChapter },
@@ -434,6 +493,7 @@ const fixtureEntries = [
   { path: 'Buches/Extension Lab/concepts/SQL Lab.md', source: sqlLabChapter },
   { path: 'Buches/Extension Lab/concepts/Graphs.md', source: graphsChapter },
   { path: 'Buches/Extension Lab/concepts/Desmos Studio.md', source: desmosChapter },
+  { path: 'Buches/Extension Lab/concepts/Polyglot Studio.md', source: polyglotChapter },
 ];
 
 const browser = await chromium.launch(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' });
@@ -1126,6 +1186,60 @@ const scenarios = {
     await fit.locator('.desmos-canvas').waitFor({ timeout: 30000 });
     assert.equal(await fit.locator('.extension-badge').textContent(), 'Passed');
     assert.equal(await fit.locator('input[aria-label="Parameter m"]').inputValue(), '1');
+  },
+  async polyglotStudio(page) {
+    await openChapter(page, 'Polyglot Studio');
+    const py = page.locator('.extension-frame[data-block-key="id:poly-two-sum"]');
+    await py.scrollIntoViewIfNeeded();
+    await py.locator('.cm-editor').waitFor({ timeout: 30000 });
+    assert.match(await py.locator('.poly-description').textContent(), /indices/);
+    assert.equal(await py.locator('.poly-tabs button').count(), 3);
+
+    // Hidden tests are masked before the first run.
+    await py.getByRole('tab', { name: /Tests/ }).click();
+    assert.match(await py.locator('.poly-tests').textContent(), /Hidden test 3 — revealed after your first run/);
+    await py.getByRole('tab', { name: /Solution\.py/ }).click();
+
+    // Run the naive starter: fails with a diff, console captures stdout.
+    await py.getByRole('button', { name: 'Run tests' }).click();
+    await py.locator('.poly-results-head', { hasText: '0 / 3 tests passed' }).waitFor({ timeout: 60000 });
+    assert.match(await py.locator('.poly-console').textContent(), /sandbox ready/);
+    assert.match(await py.locator('.poly-diff-expected').first().textContent(), /\[0, 1\]/);
+    assert.match(await py.locator('.poly-diff-actual').first().textContent(), /None/);
+    await shot(page, 'poly-01-python-fail');
+
+    // Type the real solution and re-run: all tests pass, exercise completes.
+    const replaceCode = async (frame, text) => {
+      await frame.locator('.cm-content').click();
+      await page.keyboard.press('Meta+A');
+      await page.keyboard.insertText(text);
+    };
+    await replaceCode(py, 'def two_sum(nums, target):\n    seen = {}\n    for i, x in enumerate(nums):\n        if target - x in seen:\n            return [seen[target - x], i]\n        seen[x] = i\n');
+    await py.getByRole('button', { name: 'Run tests' }).click();
+    await py.locator('.poly-results-head', { hasText: '3 / 3 tests passed' }).waitFor({ timeout: 30000 });
+    await py.locator('.extension-badge[data-status="passed"]').waitFor();
+    assert.match(await py.locator('.poly-results-head').textContent(), /engine boot \d+ ms/);
+    await shot(page, 'poly-02-python-pass');
+
+    // JavaScript sandbox: same flow through the code-lab worker.
+    const js = page.locator('.extension-frame[data-block-key="id:poly-fib"]');
+    await js.scrollIntoViewIfNeeded();
+    await js.locator('.cm-editor').waitFor();
+    await replaceCode(js, 'function fib(n) {\n  let a = 0, b = 1;\n  for (let i = 0; i < n; i++) { [a, b] = [b, a + b]; }\n  return a;\n}\n');
+    await js.getByRole('button', { name: 'Run tests' }).click();
+    await js.locator('.poly-results-head', { hasText: '4 / 4 tests passed' }).waitFor({ timeout: 30000 });
+    await js.locator('.extension-badge[data-status="passed"]').waitFor();
+    await shot(page, 'poly-03-js-pass');
+
+    // Code and results survive reload.
+    await page.waitForTimeout(650);
+    await page.reload();
+    await page.locator('article h1.page-title', { hasText: 'Polyglot Studio' }).waitFor();
+    await py.scrollIntoViewIfNeeded();
+    await py.locator('.cm-editor').waitFor({ timeout: 30000 });
+    assert.equal(await py.locator('.extension-badge').textContent(), 'Passed');
+    assert.match(await py.locator('.cm-content').textContent(), /seen\[target - x\]/);
+    assert.equal(await js.locator('.extension-badge').textContent(), 'Passed');
   },
 };
 
