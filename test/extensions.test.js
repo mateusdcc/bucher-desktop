@@ -4,6 +4,7 @@ const { z } = require('zod');
 const { ExtensionRegistry } = require('../src/extensions/registry');
 const { createValidator, jsonSchemaFor, blockMeta } = require('../src/extensions/validate');
 const { blockKey, isExtensionInfo, payloadId, payloadTitle } = require('../src/extensions/keys');
+const { composeSkills, skillArgs } = require('../src/extensions/skills');
 
 function memoryStorage() {
   const map = new Map();
@@ -99,4 +100,35 @@ test('block keys prefer explicit ids, then anchors, then positional fallbacks', 
   assert.equal(isExtensionInfo(' ext-code-lab '), true);
   assert.equal(isExtensionInfo('javascript'), false);
   assert.equal(isExtensionInfo('ext-'), false);
+});
+
+test('skill composer aggregates enabled extensions only, with schemas and examples', () => {
+  const registry = new ExtensionRegistry({ storage: null });
+  assert.equal(composeSkills(registry), '');
+  assert.deepEqual(skillArgs(registry), {});
+  registry.register(fakeExtension());
+  registry.register(fakeExtension({
+    id: 'ext-other',
+    name: 'Other',
+    category: 'exercise',
+    skill: {
+      instructions: 'Author other blocks for practice.',
+      syntaxSpec: 'value: <number>',
+      fewShotExamples: [{ title: 'Practice', yaml: 'id: practice\nvalue: 2' }],
+    },
+  }));
+  const skills = composeSkills(registry);
+  assert.match(skills, /Interactive extension blocks/);
+  assert.match(skills, /ext-fake/);
+  assert.match(skills, /Use the fake block for tests\./);
+  assert.match(skills, /```ext-fake\nvalue: 1\n```/);
+  assert.match(skills, /Payload JSON Schema/);
+  assert.match(skills, /ext-other/);
+  registry.setEnabled('ext-other', false);
+  const reduced = composeSkills(registry);
+  assert.match(reduced, /ext-fake/);
+  assert.doesNotMatch(reduced, /ext-other/);
+  assert.deepEqual(skillArgs(registry), { skills: reduced });
+  registry.setEnabled('ext-fake', false);
+  assert.deepEqual(skillArgs(registry), {});
 });

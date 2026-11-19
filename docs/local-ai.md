@@ -19,14 +19,18 @@ The reader calls the native Tauri commands below through `invoke` from `@tauri-a
 | `chatgpt_models` | None | Displayable models for the authorized ChatGPT account |
 | `chatgpt_logout` | None | Ends the local session and attempts to revoke its refresh token |
 | `chatgpt_usage` | None | Opens the official ChatGPT usage page |
-| `ai_explain` | `model`, `question`, `context` | Markdown explanation |
-| `ai_generate_solution` | `model`, `exercise`, optional `context` and `instructions` | Worked solution in Markdown and LaTeX |
-| `ai_review_solution` | `model`, `exercise`, `attempt`, optional `rubric` | Markdown feedback and criterion scores when a rubric is supplied |
-| `ai_propose_patch` | `model`, `markdown`, `instructions` | `{ original, replacement }` |
-| `ai_prepare_import` | `model`, `title`, `markdown` | `{ title, introduction, chapters: [{ title, markdown }] }` |
+| `ai_explain` | `model`, `question`, `context`, optional `skills` | Markdown explanation |
+| `ai_generate_solution` | `model`, `exercise`, optional `context`, `instructions`, and `skills` | Worked solution in Markdown and LaTeX |
+| `ai_review_solution` | `model`, `exercise`, `attempt`, optional `rubric` and `skills` | Markdown feedback and criterion scores when a rubric is supplied |
+| `ai_propose_patch` | `model`, `markdown`, `instructions`, optional `skills` | `{ original, replacement }` |
+| `ai_prepare_import` | `model`, `title`, `markdown`, optional `skills` | `{ title, introduction, chapters: [{ title, markdown }] }` |
 | `ai_import_book` | `draft` from `ai_prepare_import`, with any user edits | Library-relative path to the new book's `_index.md` |
 
 All model inputs are strings. Pass `provider: "chatgpt"` with a ChatGPT model slug to generate using plan usage, or omit `provider` to use Ollama. ChatGPT generation commands accept optional `reasoningEffort` values of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max` where the selected model supports them. Pass the relevant book or exercise excerpt as context. For large documents, process sections separately so the chosen model can fit the source and response in its context window.
+
+### Extension skills
+
+The authoring commands accept an optional `skills` string that is appended to the system prompt. The reader composes it from the **enabled** extensions in the Extension Manager (Settings → Extensions): each contributes authoring instructions, the exact fence + YAML syntax, a JSON Schema, and few-shot examples, so generated books can use interactive blocks (`ext-mermaid`, `ext-code-lab`, …). Toggling an extension changes the next request; disabling all extensions omits the argument. See `EXTENSIONS_ARCHITECTURE.md`.
 
 ### Review a patch
 

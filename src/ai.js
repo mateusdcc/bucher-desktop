@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { skillArgs } from './extensions/skills';
 import intro from './model/intro-model';
 import { patchDiff } from './patch-view';
 import { manageChatGptUsage, selectedAi } from './settings';
@@ -155,7 +156,7 @@ export function createAiActions({ markdown, openSettings, openWorkspace, closeWo
       run(host, {
         title: 'Explain with AI', scope, kind: 'ai-explanation', submitLabel: 'Explain',
         fields: [{ ...prompt('question', 'Question'), fitContent: true }],
-        request: (selection, { question }) => invoke('ai_explain', { ...selection, question, context }),
+        request: (selection, { question }) => invoke('ai_explain', { ...selection, ...skillArgs(), question, context }),
         preview: text => markdown(text, path),
       });
     },
@@ -167,7 +168,7 @@ export function createAiActions({ markdown, openSettings, openWorkspace, closeWo
         title: 'Propose a patch', scope, kind: 'patch-rail', submitLabel: 'Generate patch',
         resultTitle: 'Review patch', closeLabel: 'Discard',
         fields: [prompt('instructions', 'What should change?')],
-        request: (selection, { instructions }) => invoke('ai_propose_patch', { ...selection, instructions, markdown: original }),
+        request: (selection, { instructions }) => invoke('ai_propose_patch', { ...selection, ...skillArgs(), instructions, markdown: original }),
         preview: patch => {
           if (patch.original !== original) throw new Error('The patch does not match the original Markdown.');
           return patchDiff(patch);
@@ -188,7 +189,7 @@ export function createAiActions({ markdown, openSettings, openWorkspace, closeWo
       run(host, {
         title: 'Generate a solution', scope, kind: 'exercise-ai-panel', submitLabel: 'Generate solution',
         fields: [prompt('instructions', 'Instructions (optional)', false)],
-        request: (selection, { instructions }) => invoke('ai_generate_solution', { ...selection, exercise, context, instructions }),
+        request: (selection, { instructions }) => invoke('ai_generate_solution', { ...selection, ...skillArgs(), exercise, context, instructions }),
         preview: text => markdown(text, path),
         acceptLabel: 'Save as AI solution',
         accept: save,
@@ -198,7 +199,7 @@ export function createAiActions({ markdown, openSettings, openWorkspace, closeWo
       run(readerRail, {
         title: 'Review attempt with AI', scope, kind: 'review-rail', submitLabel: 'Review attempt',
         fields: [],
-        request: selection => invoke('ai_review_solution', { ...selection, exercise, attempt, rubric }),
+        request: selection => invoke('ai_review_solution', { ...selection, ...skillArgs(), exercise, attempt, rubric }),
         preview: text => markdown(text, path),
       });
     },
@@ -209,7 +210,7 @@ export function createAiActions({ markdown, openSettings, openWorkspace, closeWo
       run(host, {
         title: 'Prepare from Markdown', kind: 'ai-import', submitLabel: 'Prepare draft', resultTitle: 'Review draft',
         fields: [{ name: 'title', label: 'Book title', required: true }, prompt('markdown', 'Source Markdown')],
-        request: (selection, source) => invoke('ai_prepare_import', { ...selection, ...source }),
+        request: (selection, source) => invoke('ai_prepare_import', { ...selection, ...skillArgs(), ...source }),
         preview: draft => importPreview(draft, markdown),
         acceptLabel: 'Import book',
         accept: async draft => openImportedBook(await invoke('ai_import_book', { draft })),

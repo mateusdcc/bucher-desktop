@@ -5,10 +5,10 @@
  *
  * @module extensions/index
  */
-export { ExtensionRegistry, registry } from './registry';
-export { createValidator, formatIssues, jsonSchemaFor, blockMeta } from './validate';
-export { blockKey, extensionIdFromInfo, isExtensionInfo, payloadId, payloadTitle } from './keys';
-export { mountGuarded, renderDisabledCard, renderErrorFallback, renderValidationFallback, showSource } from './boundary';
+export { ExtensionRegistry, registry } from './registry.js';
+export { createValidator, formatIssues, jsonSchemaFor, blockMeta } from './validate.js';
+export { blockKey, extensionIdFromInfo, isExtensionInfo, payloadId, payloadTitle } from './keys.js';
+export { mountGuarded, renderDisabledCard, renderErrorFallback, renderValidationFallback, showSource } from './boundary.js';
 
 /**
  * @typedef {import('./types').BucherExtension} BucherExtension

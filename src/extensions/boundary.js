@@ -5,7 +5,7 @@
  *
  * @module extensions/boundary
  */
-import { button, dialog, el, icon } from '../ui';
+import { button, dialog, el, icon } from '../ui.js';
 
 /**
  * @typedef {import('./types').BucherExtension} BucherExtension
