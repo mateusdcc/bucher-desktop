@@ -611,6 +611,70 @@ solids:
 \`\`\`
 `;
 
+const nativeChapter = `---
+name: Native Workbench
+order: 12
+---
+
+# Native Workbench
+
+Git exercise:
+
+\`\`\`ext-tauri-native-workbench
+id: native-git-feature
+title: "Git: feature branch workflow"
+kind: git
+description: |
+  Create a branch named \`feature\`, add \`hello.txt\` containing exactly
+  \`hello\` (one line), and commit it with a message containing "add greeting".
+setup:
+  gitInit: true
+  files:
+    - { path: README.md, content: "# Demo project\\n" }
+checks:
+  - { type: branch-exists, name: feature }
+  - { type: current-branch, name: feature }
+  - { type: file-equals, path: hello.txt, content: "hello\\n" }
+  - { type: log-contains, text: add greeting }
+\`\`\`
+
+Pipeline exercise:
+
+\`\`\`ext-tauri-native-workbench
+id: native-pipeline-errors
+title: "Pipeline: count the errors"
+kind: pipeline
+description: Count the lines containing ERROR in server.log and save the number to count.txt.
+setup:
+  files:
+    - path: server.log
+      content: |
+        INFO started
+        ERROR disk full
+        INFO retrying
+        ERROR timeout
+        INFO done
+checks:
+  - type: pipeline-output
+    stages:
+      - [cat, server.log]
+      - [grep, ERROR]
+      - [wc, "-l"]
+    expected: "2"
+  - { type: file-equals, path: count.txt, content: "2\\n" }
+\`\`\`
+
+Native system facts:
+
+\`\`\`ext-tauri-native-workbench
+id: native-system
+title: This machine
+kind: system
+mode: explore
+description: Real host facts reported by the Rust backend (sysinfo).
+\`\`\`
+`;
+
 const fixtureEntries = [
   { path: 'Buches/Extension Lab/_index.md', source: labIndex },
   { path: 'Buches/Extension Lab/concepts/Diagrams.md', source: diagramsChapter },
@@ -624,6 +688,7 @@ const fixtureEntries = [
   { path: 'Buches/Extension Lab/concepts/Polyglot Studio.md', source: polyglotChapter },
   { path: 'Buches/Extension Lab/concepts/DuckDB Lab.md', source: duckdbChapter },
   { path: 'Buches/Extension Lab/concepts/Spatial Lab.md', source: spatialChapter },
+  { path: 'Buches/Extension Lab/concepts/Native Workbench.md', source: nativeChapter },
 ];
 
 const browser = await chromium.launch({
@@ -666,6 +731,107 @@ async function setup(entries = fixtureEntries, bookTitle = 'Extension Lab') {
         }
         if (command === 'ai_ollama_status') return { installed: true, connected: true, models: ['fixture:latest'] };
         if (command === 'chatgpt_status') return { state: 'signed-out' };
+        // --- Native workbench mock (in-memory; the real sandbox is cargo-tested) ---
+        if (command === 'check_capability') {
+          const known = ['workbench_init', 'workbench_reset', 'workbench_write', 'workbench_read',
+            'workbench_list', 'workbench_run', 'workbench_pipeline', 'native_system_info', 'sysinfo'];
+          return known.includes(args.name)
+            ? { name: args.name, kind: args.name === 'sysinfo' ? 'rust-crate' : 'ipc-command', available: true, detail: 'Fixture capability.' }
+            : { name: args.name, kind: 'unknown', available: false, detail: 'Not registered in fixture.' };
+        }
+        if (command === 'native_system_info') {
+          return { os: 'FixtureOS', osVersion: '1.0', kernel: 'fixture-kernel', hostname: 'e2e-host', cpuBrand: 'Fixture CPU', cpuCount: 8, totalMemoryMb: 16384, usedMemoryMb: 8192 };
+        }
+        if (command.startsWith('workbench_')) {
+          window.fixtureWorkspaces = window.fixtureWorkspaces ?? new Map();
+          const state = (() => {
+            if (!window.fixtureWorkspaces.has(args.workspaceId)) {
+              window.fixtureWorkspaces.set(args.workspaceId, { files: new Map(), git: null });
+            }
+            return window.fixtureWorkspaces.get(args.workspaceId);
+          })();
+          const ok = (stdout = '', stderr = '', code = 0) => ({ stdout, stderr, code });
+          const runStage = (program, stageArgs, stdin) => {
+            if (program === 'git') {
+              const [sub, ...rest] = stageArgs;
+              if (sub === 'init') {
+                const branch = rest.includes('-b') ? rest[rest.indexOf('-b') + 1] : 'main';
+                state.git = { branch, branches: [branch], commits: [] };
+                return ok('Initialized empty Git repository\n');
+              }
+              if (!state.git) return ok('', 'not a git repository', 128);
+              if (sub === 'add') return ok();
+              if (sub === 'commit') {
+                const mi = rest.indexOf('-m');
+                state.git.commits.push(mi >= 0 ? rest[mi + 1] : 'commit');
+                return ok(`[${state.git.branch} commit]\n`);
+              }
+              if (sub === 'checkout') {
+                const bi = rest.indexOf('-b');
+                if (bi >= 0) {
+                  const name = rest[bi + 1];
+                  state.git.branches.push(name);
+                  state.git.branch = name;
+                  return ok(`Switched to a new branch '${name}'\n`);
+                }
+                if (!state.git.branches.includes(rest[0])) return ok('', `pathspec '${rest[0]}' did not match`, 1);
+                state.git.branch = rest[0];
+                return ok(`Switched to branch '${rest[0]}'\n`);
+              }
+              if (sub === 'branch') return ok(state.git.branches.map(b => (b === state.git.branch ? '* ' : '  ') + b).join('\n') + '\n');
+              if (sub === 'rev-parse') return ok(state.git.branch + '\n');
+              if (sub === 'log') return ok(state.git.commits.map((m, i) => `abc${i} ${m}`).join('\n') + (state.git.commits.length ? '\n' : ''));
+              if (sub === 'status') return ok(`On branch ${state.git.branch}\n`);
+              return ok('', `git ${sub} is not allowed.`, 1);
+            }
+            const input = stdin ?? '';
+            if (program === 'echo') return ok(stageArgs.join(' ') + '\n');
+            if (program === 'cat') {
+              if (!stageArgs.length) return ok(input);
+              let out = '';
+              for (const p of stageArgs) {
+                if (!state.files.has(p)) return ok('', `cat: ${p}: No such file or directory`, 1);
+                out += state.files.get(p);
+              }
+              return ok(out);
+            }
+            if (program === 'grep') {
+              const pattern = stageArgs.find(a => !a.startsWith('-'));
+              const lines = input.split('\n').filter(l => l.includes(pattern));
+              return ok(lines.length ? lines.join('\n') + '\n' : '', '', lines.length ? 0 : 1);
+            }
+            if (program === 'wc') return ok(String(input.split('\n').filter(l => l.length).length) + '\n');
+            if (program === 'sort') return ok(input.split('\n').filter(l => l.length).sort().join('\n') + '\n');
+            if (program === 'ls') return ok([...state.files.keys()].join('\n') + '\n');
+            return ok('', `${program} is not allowed.`, 1);
+          };
+          if (command === 'workbench_init') return '/fixture/workspaces/' + args.workspaceId;
+          if (command === 'workbench_reset') { window.fixtureWorkspaces.delete(args.workspaceId); return; }
+          if (command === 'workbench_write') { state.files.set(args.path, args.content); return; }
+          if (command === 'workbench_read') {
+            if (!state.files.has(args.path)) throw new Error('No such file: ' + args.path);
+            return state.files.get(args.path);
+          }
+          if (command === 'workbench_list') return [...state.files.entries()].map(([path, content]) => ({ path, size: content.length }));
+          if (command === 'workbench_run') {
+            const out = runStage(args.program, args.args, null);
+            if (args.outputFile) state.files.set(args.outputFile, out.stdout);
+            return out;
+          }
+          if (command === 'workbench_pipeline') {
+            let carry = null;
+            let last = ok();
+            const stderrs = [];
+            for (const stage of args.stages) {
+              last = runStage(stage[0], stage.slice(1), carry);
+              if (last.stderr) stderrs.push(last.stderr);
+              carry = last.stdout;
+            }
+            last.stderr = stderrs.join('\n');
+            if (args.outputFile) state.files.set(args.outputFile, last.stdout);
+            return last;
+          }
+        }
         if (command === 'ai_prepare_import' || command === 'ai_propose_patch' || command === 'ai_explain'
           || command === 'ai_generate_solution' || command === 'ai_review_solution') {
           window.fixtureSkillRequests = window.fixtureSkillRequests ?? [];
@@ -1497,6 +1663,62 @@ const scenarios = {
     await matrix.locator('.spatial-canvas canvas').waitFor({ timeout: 60000 });
     await matrix.locator('.extension-badge[data-status="passed"]').waitFor({ timeout: 15000 });
     assert.equal(await matrix.locator('input[aria-label="Parameter a"]').inputValue(), '2');
+  },
+  async nativeWorkbench(page) {
+    await openChapter(page, 'Native Workbench');
+    const git = page.locator('.extension-frame[data-block-key="id:native-git-feature"]');
+    await git.scrollIntoViewIfNeeded();
+    await git.locator('.workbench-terminal').waitFor({ timeout: 30000 });
+    // Setup seeded the repo and README.
+    await git.locator('.workbench-file', { hasText: 'README.md' }).waitFor();
+    const run = async (frame, cmd) => {
+      await frame.locator('.workbench-input').fill(cmd);
+      await frame.locator('.workbench-input').press('Enter');
+      await page.waitForTimeout(150);
+    };
+    await run(git, 'git checkout -b feature');
+    await run(git, 'echo hello > hello.txt');
+    await run(git, 'git add hello.txt');
+    await run(git, 'git commit -m "add greeting"');
+    assert.match(await git.locator('.workbench-log').textContent(), /Switched to a new branch 'feature'/);
+    await shot(page, 'native-01-terminal');
+
+    // Blocked programs are rejected client-side before any IPC.
+    await run(git, 'rm -rf /');
+    assert.match(await git.locator('.workbench-log').textContent(), /"rm" is not allowed/);
+
+    await git.getByRole('button', { name: 'Verify native state' }).click();
+    await git.locator('.extension-badge[data-status="passed"]').waitFor({ timeout: 15000 });
+    assert.equal(await git.locator('.workbench-check.pass').count(), 4);
+    await shot(page, 'native-02-verified');
+
+    // Pipeline exercise: chain programs and redirect to a workspace file.
+    const pipe = page.locator('.extension-frame[data-block-key="id:native-pipeline-errors"]');
+    await pipe.locator('.workbench-terminal').waitFor({ timeout: 15000 });
+    await pipe.scrollIntoViewIfNeeded();
+    await run(pipe, 'cat server.log | grep ERROR | wc -l > count.txt');
+    assert.match(await pipe.locator('.workbench-log').textContent(), /2/);
+    await pipe.getByRole('button', { name: 'Verify native state' }).click();
+    await pipe.locator('.extension-badge[data-status="passed"]').waitFor({ timeout: 15000 });
+    assert.equal(await pipe.locator('.workbench-check.pass').count(), 2);
+
+    // System scene shows the (fixture) host facts.
+    const sys = page.locator('.extension-frame[data-block-key="id:native-system"]');
+    await sys.locator('.workbench-syscard').first().waitFor({ timeout: 15000 });
+    await sys.scrollIntoViewIfNeeded();
+    assert.match(await sys.locator('.workbench-sysinfo').textContent(), /FixtureOS 1\.0/);
+    assert.match(await sys.locator('.workbench-sysinfo').textContent(), /Fixture CPU \(8 cores\)/);
+    await shot(page, 'native-03-sysinfo');
+
+    // History and verification survive reload.
+    await page.waitForTimeout(650);
+    await page.reload();
+    await page.locator('article h1.page-title', { hasText: 'Native Workbench' }).waitFor();
+    await git.scrollIntoViewIfNeeded();
+    await git.locator('.workbench-terminal').waitFor({ timeout: 30000 });
+    await git.locator('.extension-badge[data-status="passed"]').waitFor({ timeout: 15000 });
+    assert.match(await git.locator('.workbench-log').textContent(), /git commit -m "add greeting"/);
+    assert.equal(await pipe.locator('.extension-badge').textContent(), 'Passed');
   },
 };
 

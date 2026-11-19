@@ -319,7 +319,11 @@ test('dependency manifests aggregate and match the installed package.json', () =
   assert.equal(mermaid.lazyLoad, true);
   const cmView = packages.find(entry => entry.name === '@codemirror/view');
   assert.deepEqual(cmView.usedBy.sort(), ['ext-code-lab', 'ext-sql-lab']);
-  assert.deepEqual(registry.tauriDependencies(), []);
+  const tauriDeps = registry.tauriDependencies();
+  assert.ok(tauriDeps.length >= 8);
+  assert.ok(tauriDeps.every(dep => dep.usedBy.includes('ext-tauri-native-workbench')));
+  const init = tauriDeps.find(dep => dep.name === 'workbench_init');
+  assert.equal(init.fallbackBehavior, 'disable-on-web');
 });
 
 test('capability bridge falls back gracefully outside Tauri and stores audit results', async () => {
@@ -455,6 +459,30 @@ test('spatial-lab schema enforces scene-kind and challenge invariants', () => {
   assert.equal(spatialLabExtension.validate(challenge).ok, true);
   assert.equal(spatialLabExtension.validate({ ...challenge, targets: [{ vector: 9, position: [2, 0, 0] }] }).ok, false);
   assert.equal(spatialLabExtension.validate({ ...vectors, params: [{ name: 'x', min: 0, max: 1 }] }).ok, false);
+});
+
+test('native-workbench schema and command parser enforce the sandbox grammar', () => {
+  const { nativeWorkbenchExtension, parseCommand } = require('../src/extensions/tauri-native-workbench');
+  const git = {
+    id: 'native-git', kind: 'git', setup: { gitInit: true, files: [{ path: 'README.md', content: '# demo\n' }] },
+    checks: [{ type: 'branch-exists', name: 'feature' }],
+  };
+  assert.equal(nativeWorkbenchExtension.validate(git).ok, true);
+  assert.equal(nativeWorkbenchExtension.validate({ ...git, checks: [] }).ok, false);
+  assert.equal(nativeWorkbenchExtension.validate({ id: 's', kind: 'system', mode: 'challenge' }).ok, false);
+  assert.equal(nativeWorkbenchExtension.validate({ id: 's', kind: 'system', mode: 'explore' }).ok, true);
+  assert.equal(nativeWorkbenchExtension.validate({ ...git, kind: 'pipeline' }).ok, false);
+  assert.equal(nativeWorkbenchExtension.validate({ ...git, setup: { files: [{ path: '../escape', content: 'x' }] } }).ok, false);
+
+  const parsed = parseCommand('cat server.log | grep ERROR | wc -l > count.txt');
+  assert.deepEqual(parsed.stages, [['cat', 'server.log'], ['grep', 'ERROR'], ['wc', '-l']]);
+  assert.equal(parsed.outputFile, 'count.txt');
+  const quoted = parseCommand('git commit -m "add greeting"');
+  assert.deepEqual(quoted.stages, [['git', 'commit', '-m', 'add greeting']]);
+  assert.equal(quoted.outputFile, null);
+  assert.ok('error' in parseCommand('rm -rf /'));
+  assert.ok('error' in parseCommand('cat a > b > c'));
+  assert.ok('error' in parseCommand('   '));
 });
 
 test('every built-in extension registers and its few-shot examples validate', () => {

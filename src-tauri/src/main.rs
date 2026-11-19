@@ -4,6 +4,7 @@ mod ai;
 mod capability;
 mod chatgpt;
 mod library;
+mod workbench;
 
 use library::{Entry, ImportReport};
 use std::{io, path::PathBuf, sync::Mutex};
@@ -101,7 +102,15 @@ fn main() {
             ai::ai_propose_patch,
             ai::ai_prepare_import,
             ai::ai_import_book,
-            capability::check_capability
+            capability::check_capability,
+            workbench::native_system_info,
+            workbench::workbench_init,
+            workbench::workbench_reset,
+            workbench::workbench_write,
+            workbench::workbench_read,
+            workbench::workbench_list,
+            workbench::workbench_run,
+            workbench::workbench_pipeline
         ])
         .run(tauri::generate_context!())
         .expect("Bücher could not start");

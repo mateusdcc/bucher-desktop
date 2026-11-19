@@ -16,6 +16,7 @@ import { desmosLabExtension } from './desmos-lab.js';
 import { polyglotStudioExtension } from './polyglot-studio.js';
 import { sqlDuckdbLabExtension } from './sql-duckdb-lab.js';
 import { spatialLabExtension } from './spatial-lab.js';
+import { nativeWorkbenchExtension } from './tauri-native-workbench.js';
 
 registry.register(mermaidExtension);
 registry.register(mathPlotExtension);
@@ -28,3 +29,4 @@ registry.register(desmosLabExtension);
 registry.register(polyglotStudioExtension);
 registry.register(sqlDuckdbLabExtension);
 registry.register(spatialLabExtension);
+registry.register(nativeWorkbenchExtension);

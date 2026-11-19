@@ -30,13 +30,21 @@ const KNOWN_COMMANDS: &[&str] = &[
     "ai_prepare_import",
     "ai_import_book",
     "check_capability",
+    "native_system_info",
+    "workbench_init",
+    "workbench_reset",
+    "workbench_write",
+    "workbench_read",
+    "workbench_list",
+    "workbench_run",
+    "workbench_pipeline",
 ];
 
 /// Tauri plugins initialized by this build.
 const KNOWN_PLUGINS: &[&str] = &["opener", "dialog"];
 
 /// Rust crates compiled into this build that extensions may declare.
-const KNOWN_CRATES: &[&str] = &["tokio", "tempfile", "serde", "serde_json", "reqwest", "uuid"];
+const KNOWN_CRATES: &[&str] = &["tokio", "tempfile", "serde", "serde_json", "reqwest", "uuid", "sysinfo"];
 
 /// Health-check a declared native dependency. Extensions call this through the
 /// frontend bridge at registration/mount time and apply their declared

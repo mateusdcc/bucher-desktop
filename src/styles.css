@@ -675,6 +675,37 @@ audio { width: 100%; margin-top: 10px; }
 .spatial-param-value { min-width: 48px; text-align: right; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 .spatial-error { border: 1px solid #5a3a30; background: #2a1f1b; color: #e8927c; padding: 10px 12px; font-size: 12px; white-space: pre-wrap; }
 
+/* ext-tauri-native-workbench */
+.workbench-description { margin-bottom: 10px; font-size: 13.5px; }
+.workbench-description > :first-child { margin-top: 0; }
+.workbench-terminal { border: 1px solid #2c312c; background: #141614; }
+.workbench-terminal-head { padding: 5px 12px; font-size: 10.5px; border-bottom: 1px solid #2c312c; font-family: ui-monospace, monospace; }
+.workbench-log { max-height: 240px; overflow: auto; padding: 8px 12px; font-family: ui-monospace, monospace; font-size: 12px; }
+.workbench-entry { margin-bottom: 8px; }
+.workbench-cmd { color: var(--strong); white-space: pre-wrap; word-break: break-word; }
+.workbench-stdout { margin: 3px 0 0; color: #c9cbc4; white-space: pre-wrap; word-break: break-word; }
+.workbench-stderr { margin: 3px 0 0; color: #e8927c; white-space: pre-wrap; word-break: break-word; }
+.workbench-code { font-size: 10.5px; }
+.workbench-inputrow { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid #2c312c; }
+.workbench-input { flex: 1; background: #1b1d1b; border: 1px solid #2c312c; color: var(--strong); font-family: ui-monospace, monospace; font-size: 12.5px; padding: 6px 10px; }
+.workbench-side { display: flex; gap: 10px; margin-top: 10px; align-items: flex-start; flex-wrap: wrap; }
+.workbench-files { border: 1px solid #2c312c; background: #191b19; min-width: 200px; display: flex; flex-direction: column; }
+.workbench-files-head { padding: 5px 10px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid #2c312c; }
+.workbench-file { border: none; border-radius: 0; background: transparent; text-align: left; font-family: ui-monospace, monospace; font-size: 12px; padding: 5px 10px; border-bottom: 1px solid #232623; }
+.workbench-file:hover { background: #232623; }
+.workbench-empty { padding: 6px 10px; font-size: 12px; }
+.workbench-fileview { flex: 1; min-width: 240px; margin: 0; border: 1px solid #2c312c; background: #141614; padding: 8px 12px; font-size: 12px; max-height: 180px; overflow: auto; white-space: pre-wrap; }
+.workbench-checks { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.workbench-check { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; border: 1px solid #2c312c; background: #191b19; padding: 5px 10px; }
+.workbench-check.pass .workbench-check-mark { color: #73d695; }
+.workbench-check.fail .workbench-check-mark { color: #e8927c; }
+.workbench-check-detail { margin-left: auto; font-size: 11px; }
+.workbench-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.workbench-sysinfo { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.workbench-syscard { border: 1px solid #2c312c; background: #191b19; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
+.workbench-syslabel { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; }
+.workbench-sysvalue { font-size: 13.5px; color: var(--strong); }
+
 @media (max-width: 975px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }
