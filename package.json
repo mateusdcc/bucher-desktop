@@ -27,6 +27,7 @@
     "katex": "^0.19.1",
     "lucide": "^1.74.0",
     "markdown-it": "^15.0.3",
+    "mermaid": "^11.17.2",
     "minisearch": "^7.2.0",
     "tex2typst": "^0.6.2",
     "yaml": "^2.9.1",

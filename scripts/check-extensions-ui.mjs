@@ -1,0 +1,217 @@
+/**
+ * End-to-end checks for the extension system. Builds the app, serves dist/
+ * into Chromium with a mocked Tauri IPC layer (same pattern as
+ * check-ai-ui.mjs), and exercises every built-in extension end to end:
+ * rendering, interaction, persistence across reload, manager toggles, and
+ * AI skill injection.
+ *
+ * Run: node scripts/check-extensions-ui.mjs [scenario …]
+ */
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, readdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
+
+process.chdir(fileURLToPath(new URL('..', import.meta.url)));
+execFileSync(process.execPath, ['build.mjs']);
+const output = '.deinorganizer/e2e-staging/extensions';
+
+const labIndex = '---\ntitle: Extension Lab\ndescription: Fixture book for extension checks.\n---\n\n# Extension Lab\n\nInteractive blocks under test.';
+const diagramsChapter = `---
+name: Diagrams
+order: 1
+---
+
+# Diagrams
+
+A flowchart with a stable id:
+
+\`\`\`ext-mermaid
+id: flow-1
+title: Decision flow
+diagram: |
+  flowchart TD
+    A["Start"] --> B{"ok?"}
+    B -- yes --> C["Done"]
+    B -- no --> A
+\`\`\`
+
+A malformed block must render a validation card, never crash:
+
+\`\`\`ext-mermaid
+id: broken-1
+caption: missing diagram field
+\`\`\`
+`;
+
+const fixtureEntries = [
+  { path: 'Buches/Extension Lab/_index.md', source: labIndex },
+  { path: 'Buches/Extension Lab/concepts/Diagrams.md', source: diagramsChapter },
+];
+
+const browser = await chromium.launch(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' });
+
+async function setup(entries = fixtureEntries) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 840 } });
+  await page.route('http://localhost/**', route => {
+    const { pathname } = new URL(route.request().url());
+    const file = resolve('dist', pathname === '/' ? 'index.html' : pathname.slice(1));
+    return existsSync(file) ? route.fulfill({ path: file }) : route.abort();
+  });
+  await page.addInitScript(seed => {
+    const read = () => JSON.parse(localStorage.getItem('fixture-library') ?? JSON.stringify(seed));
+    const write = entries => localStorage.setItem('fixture-library', JSON.stringify(entries));
+    window.__TAURI_INTERNALS__ = {
+      async invoke(command, args) {
+        const entries = read();
+        if (command === 'load_library') return { basePath: '/fixture', entries };
+        if (command === 'save_markdown') {
+          const current = entries.find(entry => entry.path === args.path);
+          if ((current?.source ?? null) !== args.expected) throw new Error('The file changed on disk.');
+          if (current) current.source = args.text;
+          else entries.push({ path: args.path, source: args.text });
+          write(entries);
+          return;
+        }
+        if (command === 'discard_solution') {
+          write(entries.filter(entry => !(entry.path === args.path && entry.source === args.expected)));
+          return;
+        }
+        if (command === 'ai_ollama_status') return { installed: true, connected: true, models: ['fixture:latest'] };
+        if (command === 'chatgpt_status') return { state: 'signed-out' };
+        if (command === 'ai_prepare_import' || command === 'ai_propose_patch' || command === 'ai_explain'
+          || command === 'ai_generate_solution' || command === 'ai_review_solution') {
+          window.fixtureSkillRequests = window.fixtureSkillRequests ?? [];
+          window.fixtureSkillRequests.push({ command, skills: args.skills ?? null });
+          throw new Error('Fixture does not generate.');
+        }
+        throw new Error('Unexpected IPC command ' + command);
+      },
+    };
+  }, entries);
+  await page.goto('http://localhost/');
+  await page.getByRole('heading', { name: 'Extension Lab', level: 1 }).waitFor();
+  return page;
+}
+
+const button = (page, name) => page.getByRole('button', { name, exact: true });
+async function openChapter(page, name) {
+  await page.locator('.tree-link', { hasText: name }).first().click();
+  await page.locator('article h1.page-title', { hasText: name }).waitFor();
+}
+async function shot(page, name) {
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ path: `${output}/${name}.jpg`, type: 'jpeg', quality: 90, animations: 'disabled' });
+}
+async function openExtensionsManager(page) {
+  await button(page, 'Settings').click();
+  await button(page, 'Extensions').click();
+  await page.locator('.extension-manager-card').first().waitFor();
+}
+const storedProgress = page => page.evaluate(() => {
+  const entries = JSON.parse(localStorage.getItem('fixture-library'));
+  return entries.find(entry => entry.path.endsWith('_progress.md'))?.source ?? '';
+});
+
+const scenarios = {
+  async mermaid(page) {
+    await openChapter(page, 'Diagrams');
+    const frame = page.locator('.extension-frame[data-extension="ext-mermaid"][data-block-key="id:flow-1"]');
+    await frame.locator('.mermaid-stage svg').waitFor({ timeout: 20000 });
+    assert.match(await frame.locator('.mermaid-zoom-label').textContent(), /^\d+%$/);
+    assert.ok(await frame.locator('.mermaid-stage svg').innerHTML().then(html => html.includes('Start')));
+    await shot(page, 'mermaid-01-rendered');
+
+    // Validation fallback for the malformed block.
+    const fallback = page.locator('.extension-fallback', { hasText: 'invalid block data' });
+    await fallback.waitFor();
+    assert.ok(await fallback.textContent().then(text => text.includes('diagram')));
+
+    // Zoom controls + persistence across reload.
+    await button(page, 'Reset view').click();
+    assert.equal(await frame.locator('.mermaid-zoom-label').textContent(), '100%');
+    await button(page, 'Zoom in').click();
+    assert.equal(await frame.locator('.mermaid-zoom-label').textContent(), '125%');
+    await page.waitForTimeout(650);
+    assert.match(await storedProgress(page), /id:flow-1/);
+    await page.reload();
+    await page.locator('article h1.page-title', { hasText: 'Diagrams' }).waitFor();
+    await frame.locator('.mermaid-stage svg').waitFor({ timeout: 20000 });
+    assert.equal(await frame.locator('.mermaid-zoom-label').textContent(), '125%');
+    await button(page, 'Reset view').click();
+    assert.equal(await frame.locator('.mermaid-zoom-label').textContent(), '100%');
+
+    // Pan with the pointer.
+    const box = await frame.locator('.mermaid-viewport').boundingBox();
+    assert.ok(box);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 20, { steps: 4 });
+    await page.mouse.up();
+    const transform = await frame.locator('.mermaid-stage').evaluate(node => node.style.transform);
+    assert.match(transform, /translate\(60px, 20px\)/);
+    await shot(page, 'mermaid-02-panned');
+
+    // Collapse / expand and source inspection.
+    await frame.locator('.extension-collapse').click();
+    assert.equal(await frame.locator('.extension-frame-body').isHidden(), true);
+    await frame.locator('.extension-collapse').click();
+    await frame.getByRole('button', { name: 'View source and data' }).click();
+    await page.getByRole('dialog', { name: 'Extension source' }).waitFor();
+    assert.ok(await page.getByRole('dialog').textContent().then(text => text.includes('flowchart TD')));
+    await page.keyboard.press('Escape');
+
+    // Manager toggle removes rendering and skill injection; re-enable restores.
+    await openExtensionsManager(page);
+    const toggle = page.getByRole('switch', { name: 'Disable Mermaid Diagram' });
+    await toggle.click();
+    await page.getByRole('switch', { name: 'Enable Mermaid Diagram' }).waitFor();
+    await button(page, 'View AI skill').click();
+    await page.getByRole('dialog', { name: 'AI skill · Mermaid Diagram' }).waitFor();
+    assert.ok(await page.getByRole('dialog').textContent().then(text => text.includes('sequenceDiagram')));
+    await page.keyboard.press('Escape');
+    await button(page, 'View composed AI prompt').click();
+    assert.ok(await page.getByRole('dialog').textContent().then(text => text.includes('No extensions are enabled.')));
+    await page.keyboard.press('Escape');
+    await button(page, 'Back to reader').click();
+    await page.locator('.extension-disabled-card', { hasText: 'Mermaid Diagram' }).first().waitFor();
+    assert.equal(await page.locator('.extension-frame[data-extension="ext-mermaid"] .mermaid-stage svg').count(), 0);
+    await shot(page, 'mermaid-03-disabled');
+    await page.locator('.extension-disabled-card').first().getByRole('button', { name: 'Enable extension' }).click();
+    await frame.locator('.mermaid-stage svg').waitFor({ timeout: 20000 });
+    await shot(page, 'mermaid-04-reenabled');
+  },
+};
+
+try {
+  await mkdir(output, { recursive: true });
+  const names = process.argv.length > 2 ? process.argv.slice(2) : Object.keys(scenarios);
+  for (const name of names) {
+    assert.ok(Object.hasOwn(scenarios, name), `Unknown UI test ${name}`);
+    const page = await setup();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error));
+    page.on('console', message => {
+      if (message.type() === 'error' || message.type() === 'warning' || message.text().includes('[ext-debug]')) console.log('BROWSER:', message.text());
+    });
+    try {
+      await scenarios[name](page);
+      assert.deepEqual(errors, []);
+      console.log(`Passed ${name}`);
+    } catch (error) {
+      console.log('PAGEERRORS:', errors.map(e => e.message));
+      console.log('NOTICE:', await page.locator('#notice').textContent().catch(() => 'n/a'));
+      console.log('ARTICLE-AT-FAILURE:', await page.locator('article').evaluate(n => [...n.querySelectorAll('.bucher-extension')].map(p => p.getAttribute('data-extension') + '|' + (p.getAttribute('data-source') || '').split('\n')[0] + '|children:' + p.children.length + '|' + (p.firstElementChild?.className ?? 'EMPTY')).join(' ;; ')).catch(() => 'n/a'));
+      console.log('DIALOGS-OPEN:', await page.evaluate(() => [...document.querySelectorAll('dialog')].map(d => d.open + ':' + (d.getAttribute('aria-labelledby') ? document.getElementById(d.getAttribute('aria-labelledby'))?.textContent : d.textContent.slice(0, 40))).join(' ;; ')));
+      console.log('CARD-VISIBILITY:', await page.evaluate(() => [...document.querySelectorAll('.extension-disabled-card')].map(c => { const r = c.getBoundingClientRect(); const s = getComputedStyle(c); return `${r.width}x${r.height}@${r.top} display:${s.display} vis:${s.visibility}`; }).join(' ;; ')));
+      throw error;
+    } finally {
+      await page.context().close();
+    }
+  }
+} finally {
+  await browser.close();
+}

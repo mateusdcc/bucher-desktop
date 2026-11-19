@@ -8,6 +8,8 @@ const options = {
   bundle: true,
   platform: 'browser',
   format: 'esm',
+  splitting: true,
+  chunkNames: 'chunks/[name]-[hash]',
   target: ['safari16', 'chrome105'],
   outdir: 'dist',
   assetNames: 'assets/[name]-[hash]',

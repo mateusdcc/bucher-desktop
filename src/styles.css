@@ -384,6 +384,15 @@ audio { width: 100%; margin-top: 10px; }
 .extension-switch-knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
 .extension-switch[aria-checked="true"] .extension-switch-knob { transform: translateX(18px); background: var(--accent); }
 
+/* ext-mermaid */
+.mermaid-toolbar { display: flex; align-items: center; gap: 2px; margin-bottom: 8px; }
+.mermaid-zoom-label { color: var(--quiet); font-size: 12px; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.mermaid-viewport { overflow: hidden; height: 340px; background: #161816; border: 1px solid #2c312c; cursor: grab; touch-action: none; outline-offset: -2px; }
+.mermaid-viewport.dragging { cursor: grabbing; }
+.mermaid-stage { transform-origin: 0 0; display: inline-block; padding: 18px; will-change: transform; }
+.mermaid-stage svg { display: block; }
+.mermaid-caption { margin-top: 8px; font-size: 13px; }
+
 @media (max-width: 975px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }

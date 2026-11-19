@@ -17,6 +17,7 @@ import intro from './model/intro-model';
 import memory from './model/book-memory';
 import { headingId, renderMarkdown } from './markdown';
 import { registry } from './extensions/index.js';
+import './extensions/builtins.js';
 import { hydrateExtensions } from './extensions/host.js';
 import { showChapter, showExercises, showNote, showOutline, showOverview, statusIndicator } from './reader';
 import { panelResize } from './panel-resize';

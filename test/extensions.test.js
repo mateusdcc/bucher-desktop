@@ -193,3 +193,17 @@ test('exercise fences become exercise nodes and extension state persists in _pro
   reload();
   assert.deepEqual(await progress.readExtensions(book), {});
 });
+
+test('every built-in extension registers and its few-shot examples validate', () => {
+  require('../src/extensions/builtins');
+  const { registry } = require('../src/extensions/registry');
+  const { parse } = require('yaml');
+  assert.ok(registry.list().length >= 1);
+  for (const extension of registry.list()) {
+    assert.ok(extension.skill.instructions.length > 40, `${extension.id} needs real instructions`);
+    for (const example of extension.skill.fewShotExamples) {
+      const result = extension.validate(parse(example.yaml));
+      assert.equal(result.ok, true, `${extension.id} example "${example.title}" must validate: ${!result.ok && result.issues.map(issue => issue.path + ': ' + issue.message).join('; ')}`);
+    }
+  }
+});
