@@ -421,6 +421,25 @@ test('polyglot-studio schema enforces test and language invariants', () => {
   assert.equal(polyglotStudioExtension.validate({ ...base, language: 'javascript', starter: 'function f(x){return x+1;}' }).ok, true);
 });
 
+test('duckdb-lab grader handles multiset, ordered, and tolerance comparisons', () => {
+  const { gradeRows, sqlDuckdbLabExtension } = require('../src/extensions/sql-duckdb-lab');
+  assert.equal(gradeRows([['EU', 160], ['US', 205]], [['US', 205], ['EU', 160]]).match, true);
+  assert.equal(gradeRows([['EU', 160], ['US', 205]], [['US', 205], ['EU', 160]], { ordered: true }).match, false);
+  assert.equal(gradeRows([['EU', 160.0004]], [['EU', 160]], { tolerance: 0.001 }).match, true);
+  assert.equal(gradeRows([['EU', 161]], [['EU', 160]], { tolerance: 0.001 }).match, false);
+  assert.equal(gradeRows([['EU', 160]], [['EU', 160], ['US', 205]]).match, false);
+  assert.equal(gradeRows([[1n, null]], [[1, null]]).match, true);
+  assert.equal(gradeRows([['a', 'b']], [['a', 'b'], ['a', 'b']]).match, false);
+  const base = {
+    id: 's', tables: [{ name: 't', columns: [{ name: 'a', type: 'INTEGER' }], rows: [[1], [2]] }],
+  };
+  assert.equal(sqlDuckdbLabExtension.validate(base).ok, true);
+  assert.equal(sqlDuckdbLabExtension.validate({ ...base, mode: 'challenge' }).ok, false);
+  assert.equal(sqlDuckdbLabExtension.validate({ ...base, mode: 'challenge', expected: { rows: [[1], [2]] } }).ok, true);
+  assert.equal(sqlDuckdbLabExtension.validate({ ...base, tables: [{ name: 't', columns: [{ name: 'a', type: 'INTEGER' }], rows: [[1, 2]] }] }).ok, false);
+  assert.equal(sqlDuckdbLabExtension.validate({ ...base, mode: 'challenge', expected: { columns: ['a', 'b'], rows: [[1]] } }).ok, false);
+});
+
 test('every built-in extension registers and its few-shot examples validate', () => {
   require('../src/extensions/builtins');
   const { registry } = require('../src/extensions/registry');

@@ -623,6 +623,35 @@ audio { width: 100%; margin-top: 10px; }
 .poly-log { white-space: pre-wrap; color: #c9cbc4; }
 .poly-log.error { color: #e8927c; }
 
+/* ext-sql-duckdb-lab */
+.ducklab-description { margin-bottom: 10px; font-size: 13.5px; }
+.ducklab-description > :first-child { margin-top: 0; }
+.ducklab-schema { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.ducklab-table-card { border: 1px solid #2c312c; background: #191b19; min-width: 150px; font-size: 12px; }
+.ducklab-table-name { background: #232623; color: var(--strong); font-weight: 650; padding: 5px 10px; border-bottom: 1px solid #2c312c; font-family: ui-monospace, monospace; }
+.ducklab-column { display: flex; justify-content: space-between; gap: 14px; padding: 3px 10px; border-bottom: 1px solid #232623; }
+.ducklab-column .muted { font-size: 10.5px; }
+.ducklab-rowcount { padding: 4px 10px; font-size: 10.5px; }
+.ducklab-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.ducklab-engine { font-size: 12px; }
+.ducklab-run { margin-left: auto; }
+.ducklab-editor { border: 1px solid #2c312c; }
+.ducklab-editor .cm-editor { font-size: 13px; }
+.ducklab-editor .cm-editor.cm-focused { outline: none; }
+.ducklab-error { border: 1px solid #5a3a30; background: #2a1f1b; color: #e8927c; padding: 10px 12px; font-size: 12px; white-space: pre-wrap; margin-top: 8px; }
+.ducklab-verdict { margin-top: 8px; font-size: 13px; padding: 7px 12px; border: 1px solid; }
+.ducklab-verdict.pass { color: #73d695; border-color: #2c4030; background: #1a241c; }
+.ducklab-verdict.fail { color: #e8927c; border-color: #402c2c; background: #241a1a; }
+.ducklab-results { margin-top: 10px; border: 1px solid #2c312c; background: #191b19; }
+.ducklab-results-head { padding: 6px 12px; font-size: 11.5px; border-bottom: 1px solid #2c312c; }
+.ducklab-table-wrap { overflow: auto; max-height: 300px; }
+.ducklab-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.ducklab-table th { position: sticky; top: 0; background: #232623; color: var(--strong); text-align: left; padding: 6px 12px; border-bottom: 1px solid #2c312c; cursor: pointer; user-select: none; white-space: nowrap; font-family: ui-monospace, monospace; font-size: 12px; }
+.ducklab-table th:hover { background: #2c312c; }
+.ducklab-sort { color: var(--accent); font-size: 10px; }
+.ducklab-table td { padding: 5px 12px; border-bottom: 1px solid #232623; color: #c9cbc4; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ducklab-table tbody tr:hover td { background: #1f221f; }
+
 @media (max-width: 975px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }

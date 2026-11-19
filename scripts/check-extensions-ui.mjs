@@ -483,6 +483,71 @@ tests:
 \`\`\`
 `;
 
+const duckdbChapter = `---
+name: DuckDB Lab
+order: 10
+---
+
+# DuckDB Lab
+
+Explore the data:
+
+\`\`\`ext-sql-duckdb-lab
+id: duckdb-explore
+title: Explore regional sales
+mode: explore
+description: Run queries and sort the result table by clicking column headers.
+tables:
+  - name: sales
+    columns:
+      - { name: region, type: TEXT }
+      - { name: product, type: TEXT }
+      - { name: units, type: INTEGER }
+      - { name: revenue, type: DOUBLE }
+    rows:
+      - [EU, Widget, 10, 100.0]
+      - [EU, Gizmo, 4, 60.0]
+      - [US, Widget, 7, 70.0]
+      - [US, Gizmo, 9, 135.0]
+      - [APAC, Widget, 12, 120.0]
+query: |
+  SELECT * FROM sales;
+\`\`\`
+
+Aggregate challenge:
+
+\`\`\`ext-sql-duckdb-lab
+id: duckdb-challenge
+title: Total revenue per region
+mode: challenge
+description: |
+  Return each region's total revenue as columns \`region\` and \`total\`,
+  rounded to 2 decimals. Row order does not matter.
+tables:
+  - name: sales
+    columns:
+      - { name: region, type: TEXT }
+      - { name: product, type: TEXT }
+      - { name: units, type: INTEGER }
+      - { name: revenue, type: DOUBLE }
+    rows:
+      - [EU, Widget, 10, 100.0]
+      - [EU, Gizmo, 4, 60.0]
+      - [US, Widget, 7, 70.0]
+      - [US, Gizmo, 9, 135.0]
+      - [APAC, Widget, 12, 120.0]
+query: |
+  SELECT region FROM sales;
+expected:
+  columns: [region, total]
+  rows:
+    - [EU, 160.0]
+    - [US, 205.0]
+    - [APAC, 120.0]
+  ordered: false
+\`\`\`
+`;
+
 const fixtureEntries = [
   { path: 'Buches/Extension Lab/_index.md', source: labIndex },
   { path: 'Buches/Extension Lab/concepts/Diagrams.md', source: diagramsChapter },
@@ -494,6 +559,7 @@ const fixtureEntries = [
   { path: 'Buches/Extension Lab/concepts/Graphs.md', source: graphsChapter },
   { path: 'Buches/Extension Lab/concepts/Desmos Studio.md', source: desmosChapter },
   { path: 'Buches/Extension Lab/concepts/Polyglot Studio.md', source: polyglotChapter },
+  { path: 'Buches/Extension Lab/concepts/DuckDB Lab.md', source: duckdbChapter },
 ];
 
 const browser = await chromium.launch(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' });
@@ -1240,6 +1306,54 @@ const scenarios = {
     assert.equal(await py.locator('.extension-badge').textContent(), 'Passed');
     assert.match(await py.locator('.cm-content').textContent(), /seen\[target - x\]/);
     assert.equal(await js.locator('.extension-badge').textContent(), 'Passed');
+  },
+  async sqlDuckdbLab(page) {
+    await openChapter(page, 'DuckDB Lab');
+    const explore = page.locator('.extension-frame[data-block-key="id:duckdb-explore"]');
+    await explore.scrollIntoViewIfNeeded();
+    // Engine boot + auto-run of the initial query (WASM is ~33 MB, allow time).
+    await explore.locator('.ducklab-table tbody tr').first().waitFor({ timeout: 90000 });
+    assert.equal(await explore.locator('.ducklab-table tbody tr').count(), 5);
+    assert.match(await explore.locator('.ducklab-engine').textContent(), /DuckDB · ready \(boot \d+ ms\)/);
+    assert.equal(await explore.locator('.ducklab-table-card').count(), 1);
+    assert.match(await explore.locator('.ducklab-table-card').textContent(), /revenue\s*DOUBLE/);
+
+    // Sort by revenue: numeric columns sort descending first (TanStack default).
+    await explore.locator('.ducklab-table th', { hasText: 'revenue' }).click();
+    await explore.locator('.ducklab-table th[aria-sort="descending"]').waitFor();
+    assert.equal(await explore.locator('.ducklab-table tbody tr').first().locator('td').nth(3).textContent(), '135');
+    await explore.locator('.ducklab-table th', { hasText: 'revenue' }).click();
+    await explore.locator('.ducklab-table th[aria-sort="ascending"]').waitFor();
+    assert.equal(await explore.locator('.ducklab-table tbody tr').first().locator('td').nth(3).textContent(), '60');
+    await shot(page, 'duckdb-01-explore-sorted');
+
+    // Challenge: wrong query fails grading, correct aggregate passes.
+    const challenge = page.locator('.extension-frame[data-block-key="id:duckdb-challenge"]');
+    await challenge.scrollIntoViewIfNeeded();
+    await challenge.locator('.ducklab-run:not([disabled])').waitFor({ timeout: 90000 });
+    await challenge.getByRole('button', { name: 'Run query' }).click();
+    await challenge.locator('.ducklab-verdict.fail').waitFor({ timeout: 30000 });
+    assert.match(await challenge.locator('.ducklab-verdict').textContent(), /expected columns \[region, total\]/);
+    await shot(page, 'duckdb-02-challenge-fail');
+
+    await challenge.locator('.cm-content').click();
+    await page.keyboard.press('Meta+A');
+    await page.keyboard.insertText('SELECT region, ROUND(SUM(revenue), 2) AS total\nFROM sales\nGROUP BY region;\n');
+    await challenge.getByRole('button', { name: 'Run query' }).click();
+    await challenge.locator('.ducklab-verdict.pass').waitFor({ timeout: 30000 });
+    await challenge.locator('.extension-badge[data-status="passed"]').waitFor();
+    assert.equal(await challenge.locator('.ducklab-table tbody tr').count(), 3);
+    await challenge.scrollIntoViewIfNeeded();
+    await shot(page, 'duckdb-03-challenge-pass');
+
+    // Query and verdict survive reload.
+    await page.waitForTimeout(650);
+    await page.reload();
+    await page.locator('article h1.page-title', { hasText: 'DuckDB Lab' }).waitFor();
+    await challenge.scrollIntoViewIfNeeded();
+    await challenge.locator('.ducklab-verdict.pass').waitFor({ timeout: 90000 });
+    assert.equal(await challenge.locator('.extension-badge').textContent(), 'Passed');
+    assert.match(await challenge.locator('.cm-content').textContent(), /GROUP BY region/);
   },
 };
 
