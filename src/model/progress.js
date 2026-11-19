@@ -2,7 +2,7 @@ const { parseYaml, stringifyYaml } = require('./yaml');
 
 const PROGRESS_NAME = '_progress.md';
 const FRONTMATTER = /^\uFEFF?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?=\r?\n|$)/;
-const initialNote = '---\nbuches_progress: 1\nchapters: {}\ncards: {}\n---\n\n# Reading progress\n';
+const initialNote = '---\nbuches_progress: 1\nchapters: {}\ncards: {}\nextensions: {}\n---\n\n# Reading progress\n';
 const relative = (book, path) => path.slice(book.path.length + 1);
 
 function readProgress(text) {
@@ -12,6 +12,7 @@ function readProgress(text) {
     throw new Error('The book progress note has invalid frontmatter.');
   }
   yaml.cards = (yaml.cards && typeof yaml.cards === 'object' && !Array.isArray(yaml.cards)) ? yaml.cards : {};
+  yaml.extensions = (yaml.extensions && typeof yaml.extensions === 'object' && !Array.isArray(yaml.extensions)) ? yaml.extensions : {};
   return { match, yaml };
 }
 
@@ -133,6 +134,22 @@ class BookProgress {
     return this.write(book, yaml => {
       yaml.cards ??= {};
       yaml.cards[cardId] = state;
+    });
+  }
+
+  async readExtensions(book) {
+    const path = `${book.path}/${PROGRESS_NAME}`;
+    await this.pending.get(path)?.catch(() => {});
+    const file = this.app.vault.getAbstractFileByPath(path);
+    return file ? readProgress(await this.app.vault.cachedRead(file)).yaml.extensions : {};
+  }
+
+  /** Persist one extension block's state; null removes the key (Reset State). */
+  setExtensionState(book, key, state) {
+    return this.write(book, yaml => {
+      yaml.extensions ??= {};
+      if (state === null || state === undefined) delete yaml.extensions[key];
+      else yaml.extensions[key] = state;
     });
   }
 

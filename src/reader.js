@@ -124,7 +124,9 @@ function callout(unit, chapter, ctx) {
         () => ctx.ai.explain(explanation, title + '\n\n' + body, chapter.path, title)));
       block.prepend(explanation);
     }
-    block.append(ctx.markdown(body, chapter.path));
+    block.append(ctx.markdown(body, chapter.path, {
+      chapter, unit, unitIndex: chapter.units.indexOf(unit), referenceOnly: ctx.referenceOnly,
+    }));
   }
   return block;
 }
@@ -350,7 +352,7 @@ export function showChapter(host, chapter, ctx) {
   if (chapter.description) host.append(el('p', 'description', chapter.description));
   const chapterBody = el('div', 'chapter-body');
   const ownedHints = new Set(chapter.nodes.flatMap(node => node.solution?.hints ?? node.hints ?? []));
-  for (const unit of chapter.units) {
+  for (const [unitIndex, unit] of chapter.units.entries()) {
     if (ownedHints.has(unit)) continue;
     if (unit.type === 'heading' && unit.level === 1 && unit.title?.trim().toLowerCase() === chapter.name.toLowerCase()) continue;
     if (unit.type === 'solution') {
@@ -359,7 +361,7 @@ export function showChapter(host, chapter, ctx) {
     } else if (unit.callout) {
       chapterBody.append(callout(unit, chapter, ctx));
     } else {
-      const body = markdown(unit.markdown, chapter.path);
+      const body = markdown(unit.markdown, chapter.path, { chapter, unit, unitIndex, referenceOnly: ctx.referenceOnly });
       if (unit.anchor) body.id = '^' + unit.anchor;
       if (unit.node && !unit.anchor) body.id = unit.node.id;
       chapterBody.append(body);
@@ -395,7 +397,9 @@ export function showExercises(host, ctx, scope) {
       const block = el('section', 'sheet-exercise',
         button(chapter.name, 'arrow-up-right', () => openFile(chapter.path, exercise.unit.anchor ? '^' + exercise.unit.anchor : exercise.unit.node?.id ?? headingId(exercise.title)), 'quiet-link'),
         callout(exercise.unit.type !== 'solution' ? exercise.unit : { title: exercise.title }, chapter, ctx));
-      if (exercise.prompt?.length) block.append(markdown(exercise.prompt.join('\n\n'), chapter.path));
+      if (exercise.prompt?.length) block.append(markdown(exercise.prompt.join('\n\n'), chapter.path, {
+        chapter, unit: exercise.unit, unitIndex: chapter.units.indexOf(exercise.unit), referenceOnly: ctx.referenceOnly,
+      }));
       block.append(exerciseTools(chapter, exercise, ctx));
       host.append(block);
     }

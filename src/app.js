@@ -16,6 +16,8 @@ import storage from './model/storage';
 import intro from './model/intro-model';
 import memory from './model/book-memory';
 import { headingId, renderMarkdown } from './markdown';
+import { registry } from './extensions/index.js';
+import { hydrateExtensions } from './extensions/host.js';
 import { showChapter, showExercises, showNote, showOutline, showOverview, statusIndicator } from './reader';
 import { panelResize } from './panel-resize';
 import { settingsPage } from './settings';
@@ -30,7 +32,7 @@ const library = libraryModel.createLibrary(
   (path, text, expected) => invoke('save_markdown', { path, text, expected }),
   (path, expected) => invoke('discard_solution', { path, expected }),
 );
-const learning = new learningModel.LearningIndex(library.app);
+const learning = new learningModel.LearningIndex(library.app, id => registry.isExercise(id));
 const progress = new BookProgress(library.app, {});
 const plugin = { app: library.app, learning, solutionWrites: new Map() };
 const states = new Map();
@@ -102,14 +104,43 @@ const ai = createAiActions({
     notice('Book imported.');
   },
 });
-function markdown(source, path) {
-  return renderText(source, path, quiz);
+function markdown(source, path, ext) {
+  return renderText(source, path, quiz, ext);
 }
 
-function renderText(source, path, quiz = false) {
+function renderText(source, path, quiz = false, ext) {
   const body = el('div', 'markdown');
   body.innerHTML = renderMarkdown(source, { library, path, asset, quiz });
+  hydrateExtensions(body, hostContext(path, ext));
   return body;
+}
+
+/** Build the extension host context for one rendered Markdown body. */
+function hostContext(path, ext) {
+  const entry = findBook(path);
+  const chapter = ext?.chapter ?? entry?.model.byPath.get(path) ?? null;
+  const unit = ext?.unit;
+  const nodeId = unit?.node?.type === 'exercise' ? unit.node.id : unit?.anchor ? '^' + unit.anchor : null;
+  return {
+    registry,
+    entry: entry && chapter ? entry : null,
+    chapter,
+    nodeId,
+    unitIndex: ext?.unitIndex ?? 0,
+    readOnly: !ext || !entry || !chapter || Boolean(ext.referenceOnly),
+    renderMarkdown: source => renderText(source, path, false),
+    persist(key, state) {
+      if (!entry || !chapter) return;
+      const mapKey = chapter.path.slice(entry.book.path.length + 1) + '#' + key;
+      progress.setExtensionState(entry.book, mapKey, state).catch(report);
+    },
+    complete(exerciseId) {
+      if (!entry || !chapter) return;
+      progress.set(entry.model, { type: 'exercise', id: exerciseId, path: chapter.path }, true)
+        .then(() => refresh())
+        .catch(report);
+    },
+  };
 }
 
 function saveLocation() {
@@ -378,12 +409,14 @@ async function refresh(redraw = true) {
   const entries = await Promise.all(listBuches(library.app).map(async book => {
     const model = await learning.book(book);
     let records = {};
+    let extStates = {};
     try {
       records = await progress.read(model);
+      extStates = await progress.readExtensions(book);
     } catch (error) {
       report(error);
     }
-    return [book.path, { book, model, records }];
+    return [book.path, { book, model, records, extStates }];
   }));
   data = new Map(entries);
   if (redraw) await render(true);
@@ -500,6 +533,7 @@ function openCommandPalette() {
   const commands = [
     { label: 'Search library', glyph: 'search', run: searchLibrary },
     { label: 'Open settings', glyph: 'settings', run: () => openSettings() },
+    { label: 'Manage extensions', glyph: 'puzzle', run: () => openSettings('extensions') },
   ];
   if (utility) commands.unshift({ label: 'Back to reader', glyph: 'arrow-left', run: closeWorkspace });
   else if (route.path) {
@@ -659,6 +693,7 @@ document.addEventListener('keydown', event => {
 });
 
 setup();
+registry.subscribe(() => render(true));
 article.append(el('p', 'muted', 'Opening library…'));
 load().catch(error => {
   article.replaceChildren(el('h1', 'page-title', 'Could not open the library'), el('p', 'muted', error?.message || String(error)),

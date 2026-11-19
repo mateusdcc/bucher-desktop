@@ -7,8 +7,10 @@
  */
 export { ExtensionRegistry, registry } from './registry.js';
 export { createValidator, formatIssues, jsonSchemaFor, blockMeta } from './validate.js';
-export { blockKey, extensionIdFromInfo, isExtensionInfo, payloadId, payloadTitle } from './keys.js';
-export { mountGuarded, renderDisabledCard, renderErrorFallback, renderValidationFallback, showSource } from './boundary.js';
+export { blockKey, extensionIdFromInfo, fenceBody, fenceInfo, isExtensionInfo, payloadId, payloadTitle } from './keys.js';
+export { mountGuarded, renderDisabledCard, renderErrorFallback, renderUnknownCard, renderValidationFallback, showSource } from './boundary.js';
+export { hydrateExtensions } from './host.js';
+export { composeSkills, skillArgs } from './skills.js';
 
 /**
  * @typedef {import('./types').BucherExtension} BucherExtension

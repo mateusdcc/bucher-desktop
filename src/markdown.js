@@ -2,6 +2,7 @@ import MarkdownIt from 'markdown-it';
 import katex from 'katex';
 import { typst2tex } from 'tex2typst';
 import math from './model/math';
+import { extensionIdFromInfo, isExtensionInfo } from './extensions/keys.js';
 
 const md = new MarkdownIt({ html: false, linkify: true });
 const renderLabel = (tokens, i, options, env, renderer) => renderer.renderToken(tokens, i, options);
@@ -29,6 +30,10 @@ const escape = md.utils.escapeHtml;
 const renderFence = md.renderer.rules.fence;
 md.renderer.rules.fence = (tokens, i, options, env, renderer) => {
   const { info, content } = tokens[i];
+  if (isExtensionInfo(info)) {
+    const id = extensionIdFromInfo(info);
+    return `<div class="bucher-extension" data-extension="${escape(id)}" data-source="${escape(content)}"></div>`;
+  }
   const equation = /^\$([^$]+)\$$/.exec(content.trim())?.[1].trim();
   if (info.trim() === 'typst' && equation) {
     try {

@@ -5,6 +5,11 @@ const { ExtensionRegistry } = require('../src/extensions/registry');
 const { createValidator, jsonSchemaFor, blockMeta } = require('../src/extensions/validate');
 const { blockKey, isExtensionInfo, payloadId, payloadTitle } = require('../src/extensions/keys');
 const { composeSkills, skillArgs } = require('../src/extensions/skills');
+const { fenceBody, fenceInfo } = require('../src/extensions/keys');
+const { createLibrary } = require('../src/model/library');
+const { listBuches } = require('../src/model/catalog');
+const { LearningIndex } = require('../src/model/learning');
+const { BookProgress, countsFor } = require('../src/model/progress');
 
 function memoryStorage() {
   const map = new Map();
@@ -131,4 +136,60 @@ test('skill composer aggregates enabled extensions only, with schemas and exampl
   assert.deepEqual(skillArgs(registry), { skills: reduced });
   registry.setEnabled('ext-fake', false);
   assert.deepEqual(skillArgs(registry), {});
+});
+
+test('fence helpers extract info strings and payload bodies', () => {
+  const fence = '```ext-fake\nid: x\nvalue: 1\n```\n';
+  assert.equal(fenceInfo(fence), 'ext-fake');
+  assert.equal(fenceBody(fence), 'id: x\nvalue: 1');
+  assert.equal(fenceInfo('```javascript\ncode\n```'), 'javascript');
+  assert.equal(fenceBody('~~~ext-fake\nvalue: 2\n~~~'), 'value: 2');
+});
+
+test('exercise fences become exercise nodes and extension state persists in _progress.md', async () => {
+  const chapterSource = [
+    '---', 'name: Algorithms', 'order: 1', '---', '', '# Algorithms', '', 'Intro.', '',
+    '```ext-fake', 'id: demo-block', 'title: Demo exercise', 'value: 1', '```', '',
+    '^demo-anchor', '',
+    '> [!hint]- Hint', '> Think.', '',
+    '```ext-viz', 'id: viz-1', 'value: 2', '```', '',
+    '```ext-fake', 'value: 9', '```', '',
+  ].join('\n');
+  const disk = new Map([
+    ['Buches/Algorithms/_index.md', '---\ntitle: Algorithms\n---\n\n# Algorithms\n'],
+    ['Buches/Algorithms/concepts/Algorithms.md', chapterSource],
+  ]);
+  const library = createLibrary(async (path, text, expected) => {
+    assert.equal(disk.get(path) ?? null, expected);
+    disk.set(path, text);
+  }, async () => {});
+  const reload = () => library.load({ basePath: '/data', entries: [...disk].map(([path, source]) => ({ path, source })) });
+  reload();
+  const book = listBuches(library.app)[0];
+  const learning = new LearningIndex(library.app, id => id === 'ext-fake');
+  const model = await learning.book(book);
+  const chapter = model.chapters[0];
+  const exercises = chapter.nodes.filter(node => node.type === 'exercise');
+  assert.equal(exercises.length, 2);
+  assert.equal(exercises[0].id, '^demo-anchor');
+  assert.equal(exercises[0].title, 'Demo exercise');
+  assert.equal(exercises[0].hints.length, 1);
+  assert.equal(exercises[1].id, 'extension:ext-fake#1');
+  const vizUnit = chapter.units.find(unit => unit.markdown.startsWith('```ext-viz'));
+  assert.equal(vizUnit.node, undefined);
+
+  const progress = new BookProgress(library.app, {});
+  assert.equal(countsFor(model, await progress.read(model)).exercises, 2);
+  await progress.set(model, { ...exercises[0], path: chapter.path }, true);
+  assert.equal(countsFor(model, await progress.read(model)).solved, 1);
+
+  const key = 'concepts/Algorithms.md#id:demo-block';
+  await progress.setExtensionState(book, key, { status: 'passed', code: 'return 1;' });
+  assert.deepEqual(await progress.readExtensions(book), { [key]: { status: 'passed', code: 'return 1;' } });
+  await progress.setExtensionState(book, key, null);
+  assert.deepEqual(await progress.readExtensions(book), {});
+
+  disk.set('Buches/Algorithms/_progress.md', '---\nbuches_progress: 1\nchapters: {}\n---\n');
+  reload();
+  assert.deepEqual(await progress.readExtensions(book), {});
 });

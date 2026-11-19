@@ -1,6 +1,8 @@
 const { stripFrontmatter } = require('./intro-model');
 const { dividerLines } = require('./resolution');
 const { flattenConcepts } = require('./buch-model');
+const { parseYaml } = require('./yaml');
+const { fenceBody, fenceInfo, isExtensionInfo, payloadTitle } = require('../extensions/keys');
 
 const LEARNING_TYPES = new Set([
   'definition', 'theorem', 'lemma', 'proposition', 'corollary', 'example', 'exercise',
@@ -28,7 +30,7 @@ function sourceParts(text) {
   return parts;
 }
 
-async function parsePage(text, metadata) {
+async function parsePage(text, metadata, classifyExtension = () => false) {
   const units = [];
   for (const part of sourceParts(text)) {
     const source = text.slice(part.start, part.end);
@@ -78,6 +80,24 @@ async function parsePage(text, metadata) {
       prompt = undefined;
       hints = [];
     }
+    // Exercise-category extension fences become real exercise nodes so the
+    // existing sheet, counts, hints, and solved tracking apply to them.
+    if (unit.type === 'fence') {
+      const info = fenceInfo(unit.markdown);
+      if (isExtensionInfo(info) && classifyExtension(info)) {
+        let payload = null;
+        try { payload = parseYaml(fenceBody(unit.markdown)); } catch {}
+        const title = payloadTitle(payload) || info;
+        const key = `extension:${info}`;
+        unit.node = { id: unit.anchor ? `^${unit.anchor}` : `${key}#${count(occurrences, key)}`, title, type: 'exercise', unit };
+        nodes.push(unit.node);
+        prompt = unit.node;
+        prompt.prompt = [];
+        hints = [];
+        prompt.hints = hints;
+        continue;
+      }
+    }
     const type = LEARNING_TYPES.has(unit.callout) ? unit.callout
       : unit.type === 'heading' && /^Exercise\b/i.test(unit.title ?? '') ? 'exercise' : null;
     if (type) {
@@ -120,14 +140,18 @@ async function parsePage(text, metadata) {
 }
 
 class LearningIndex {
-  constructor(app) { this.app = app; this.pages = new Map(); }
+  constructor(app, isExtensionExercise = () => false) {
+    this.app = app;
+    this.pages = new Map();
+    this.isExtensionExercise = isExtensionExercise;
+  }
 
   async page(file, text) {
     const source = text ?? await this.app.vault.cachedRead(file);
     const cached = this.pages.get(file.path);
     if (cached?.source === source) return cached.page;
     const cache = this.app.metadataCache;
-    const page = parsePage(source, chunk => cache.computeMetadataAsync?.(new TextEncoder().encode(chunk).buffer));
+    const page = parsePage(source, chunk => cache.computeMetadataAsync?.(new TextEncoder().encode(chunk).buffer), this.isExtensionExercise);
     this.pages.set(file.path, { source, page });
     return page;
   }

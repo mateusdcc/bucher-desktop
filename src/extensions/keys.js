@@ -71,3 +71,28 @@ export function payloadTitle(payload) {
   const title = /** @type {Record<string, unknown>} */ (payload).title;
   return typeof title === 'string' && title.trim() ? title.trim() : null;
 }
+
+/**
+ * Extract the info string from a fenced block's Markdown source.
+ *
+ * @param {string} markdown
+ * @returns {string}
+ */
+export function fenceInfo(markdown) {
+  const match = /^ {0,3}(?:`{3,}|~{3,})([^\n]*)/.exec(markdown);
+  return match ? match[1].trim().split(/\s+/)[0] : '';
+}
+
+/**
+ * Strip the opening/closing fence lines, leaving the raw payload body.
+ *
+ * @param {string} markdown
+ * @returns {string}
+ */
+export function fenceBody(markdown) {
+  const lines = markdown.split('\n');
+  if (lines.length && /^ {0,3}(?:`{3,}|~{3,})/.test(lines[0])) lines.shift();
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  if (lines.length && /^ {0,3}(?:`{3,}|~{3,})[`~]*\s*$/.test(lines[lines.length - 1])) lines.pop();
+  return lines.join('\n');
+}

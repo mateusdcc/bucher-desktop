@@ -1,4 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
+import { registry } from './extensions/index.js';
+import { composeSkills } from './extensions/skills.js';
+import { jsonSchemaFor } from './extensions/validate.js';
 import { button, dialog, el, icon } from './ui';
 
 const MODEL_KEY = 'bucher/ollama-model';
@@ -242,13 +245,14 @@ export function settingsPage(library, initial = 'library') {
   const tabs = [
     ['library', button('Library', 'folder', () => select('library'))],
     ['ai', button('AI', 'sparkles', () => select('ai'))],
+    ['extensions', button('Extensions', 'puzzle', () => select('extensions'))],
   ];
   let current;
   function select(section) {
     if (current === section) return;
     current = section;
     for (const [id, tab] of tabs) tab.setAttribute('aria-pressed', String(id === section));
-    content.replaceChildren(...(section === 'ai' ? aiSettings() : [
+    content.replaceChildren(...(section === 'ai' ? aiSettings() : section === 'extensions' ? extensionSettings() : [
       el('section', 'settings-section',
         el('h3', '', 'Library'),
         el('p', 'muted', 'Book storage'),
@@ -258,4 +262,66 @@ export function settingsPage(library, initial = 'library') {
   panel.append(categories, content);
   select(initial);
   return panel;
+}
+
+/** Browse installed extensions, toggle them, and inspect their AI skills. */
+function extensionSettings() {
+  const extensions = registry.list();
+  const sections = [
+    el('section', 'settings-section',
+      el('h3', '', 'Extensions'),
+      el('p', 'muted', 'Interactive blocks superpower your books. Enabled extensions render their blocks and expose an AI authoring skill that is injected when books are created, expanded, or explained.'),
+      el('div', 'extension-manager-actions',
+        button('View composed AI prompt', 'sparkles', () => dialog('Composed extension skills', panel => {
+          const skills = composeSkills();
+          panel.append(el('p', 'muted', 'Exactly what the book-generation pipeline receives from the enabled extensions.'),
+            el('pre', 'extension-source', skills || 'No extensions are enabled.'));
+        })))),
+  ];
+  if (!extensions.length) {
+    sections.push(el('section', 'settings-section', el('p', 'muted', 'No extensions are installed yet.')));
+    return sections;
+  }
+  for (const extension of extensions) {
+    const toggle = el('button', 'extension-switch');
+    toggle.type = 'button';
+    toggle.setAttribute('role', 'switch');
+    const sync = () => {
+      const on = registry.isEnabled(extension.id);
+      toggle.setAttribute('aria-checked', String(on));
+      toggle.setAttribute('aria-label', `${on ? 'Disable' : 'Enable'} ${extension.name}`);
+      toggle.title = toggle.getAttribute('aria-label');
+    };
+    toggle.append(el('span', 'extension-switch-knob'));
+    toggle.addEventListener('click', () => {
+      registry.setEnabled(extension.id, !registry.isEnabled(extension.id));
+      sync();
+    });
+    sync();
+    sections.push(el('section', 'settings-section extension-manager-card',
+      el('div', 'extension-manager-head',
+        icon(extension.icon),
+        el('div', 'extension-manager-meta',
+          el('h3', '', extension.name),
+          el('p', 'muted', `${extension.id} · v${extension.version} · ${extension.category}`)),
+        toggle),
+      el('p', 'muted', extension.description),
+      el('div', 'extension-manager-actions',
+        button('View AI skill', 'sparkles', () => showSkill(extension)))));
+  }
+  return sections;
+}
+
+function showSkill(extension) {
+  dialog(`AI skill · ${extension.name}`, panel => {
+    panel.classList.add('extension-source-dialog');
+    panel.append(el('h3', '', 'Instructions'), el('pre', 'extension-source', extension.skill.instructions));
+    panel.append(el('h3', '', 'Syntax'), el('pre', 'extension-source', extension.skill.syntaxSpec));
+    const jsonSchema = jsonSchemaFor(extension.schema);
+    if (jsonSchema) panel.append(el('h3', '', 'Payload JSON Schema'), el('pre', 'extension-source', JSON.stringify(jsonSchema, null, 2)));
+    for (const example of extension.skill.fewShotExamples) {
+      panel.append(el('h3', '', 'Example · ' + example.title),
+        el('pre', 'extension-source', '```' + extension.id + '\n' + example.yaml.trim() + '\n```'));
+    }
+  });
 }

@@ -103,6 +103,19 @@ export function renderDisabledCard(host, { extension, onEnable }) {
 }
 
 /**
+ * Card for fence ids that no registered extension claims.
+ *
+ * @param {HTMLElement} host
+ * @param {string} id
+ * @param {string} source
+ */
+export function renderUnknownCard(host, id, source) {
+  host.replaceChildren(fallbackCard(null, 'unknown extension', [
+    el('p', 'muted', `No installed extension claims the id “${id}”. Check the spelling or enable it in Settings → Extensions.`),
+  ], source));
+}
+
+/**
  * Mount an extension behind the error boundary. Synchronous mount failures are
  * caught here; extensions report async failures through `props.onError`.
  *
