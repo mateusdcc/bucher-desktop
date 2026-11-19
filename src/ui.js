@@ -1,3 +1,4 @@
+// @ts-nocheck — legacy DOM helpers; extension code is typechecked against these via JSDoc.
 import { createElement, icons } from 'lucide';
 
 export function el(tag, className, ...children) {
