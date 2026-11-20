@@ -82,20 +82,23 @@ async function parsePage(text, metadata, classifyExtension = () => false) {
     }
     // Exercise-category extension fences become real exercise nodes so the
     // existing sheet, counts, hints, and solved tracking apply to them.
+    // Explore-mode payloads (visualizations) are excluded by the classifier.
     if (unit.type === 'fence') {
       const info = fenceInfo(unit.markdown);
-      if (isExtensionInfo(info) && classifyExtension(info)) {
+      if (isExtensionInfo(info)) {
         let payload = null;
         try { payload = parseYaml(fenceBody(unit.markdown)); } catch {}
-        const title = payloadTitle(payload) || info;
-        const key = `extension:${info}`;
-        unit.node = { id: unit.anchor ? `^${unit.anchor}` : `${key}#${count(occurrences, key)}`, title, type: 'exercise', unit };
-        nodes.push(unit.node);
-        prompt = unit.node;
-        prompt.prompt = [];
-        hints = [];
-        prompt.hints = hints;
-        continue;
+        if (classifyExtension(info, payload)) {
+          const title = payloadTitle(payload) || info;
+          const key = `extension:${info}`;
+          unit.node = { id: unit.anchor ? `^${unit.anchor}` : `${key}#${count(occurrences, key)}`, title, type: 'exercise', unit };
+          nodes.push(unit.node);
+          prompt = unit.node;
+          prompt.prompt = [];
+          hints = [];
+          prompt.hints = hints;
+          continue;
+        }
       }
     }
     const type = LEARNING_TYPES.has(unit.callout) ? unit.callout

@@ -91,6 +91,27 @@ const SHOWCASE: &[(&str, &str)] = &[
     ),
 ];
 
+/// Second-generation showcase: the six dependency-backed engines (graph,
+/// desmos, polyglot, duckdb, spatial, native). Seeded once via the
+/// `.showcase-v2-seeded` marker so deleting the book keeps it deleted.
+macro_rules! showcase_v2 {
+    ($file:literal) => {
+        include_str!(concat!(
+            "../../demo/Buches/Bucher Interactive Showcase v2/",
+            $file
+        ))
+    };
+}
+const SHOWCASE_V2: &[(&str, &str)] = &[
+    ("_index.md", showcase_v2!("_index.md")),
+    ("concepts/Graphs and Proofs.md", showcase_v2!("concepts/Graphs and Proofs.md")),
+    ("concepts/Math Studio.md", showcase_v2!("concepts/Math Studio.md")),
+    ("concepts/Polyglot Coding.md", showcase_v2!("concepts/Polyglot Coding.md")),
+    ("concepts/Data with DuckDB.md", showcase_v2!("concepts/Data with DuckDB.md")),
+    ("concepts/Spatial Thinking.md", showcase_v2!("concepts/Spatial Thinking.md")),
+    ("concepts/Native Power.md", showcase_v2!("concepts/Native Power.md")),
+];
+
 #[derive(Serialize)]
 pub struct Entry {
     pub path: String,
@@ -436,6 +457,20 @@ pub fn load(root: &Path) -> io::Result<Vec<Entry>> {
         }
         fs::write(showcase_seeded, "")?;
     }
+    let showcase_v2_seeded = root.join(".showcase-v2-seeded");
+    if !showcase_v2_seeded.try_exists()? {
+        let name = "Bucher Interactive Showcase v2";
+        if !collection.join(name).try_exists()? {
+            let staging = tempfile::tempdir_in(&collection)?;
+            for (relative, source) in SHOWCASE_V2 {
+                let file = staging.path().join(relative);
+                fs::create_dir_all(file.parent().unwrap())?;
+                fs::write(file, source)?;
+            }
+            fs::rename(staging.path(), collection.join(name))?;
+        }
+        fs::write(showcase_v2_seeded, "")?;
+    }
     let mut entries = Vec::new();
     visit(&collection, &mut |path| {
         let relative = path
@@ -502,6 +537,29 @@ mod tests {
         assert!(!entries
             .iter()
             .any(|entry| entry.path.starts_with("Buches/The Interactive Extension Showcase/")));
+    }
+
+    #[test]
+    fn seeds_showcase_v2_once_and_respects_deletion() {
+        let root = tempfile::tempdir().unwrap();
+        let entries = load(root.path()).unwrap();
+        assert!(entries
+            .iter()
+            .any(|entry| entry.path == "Buches/Bucher Interactive Showcase v2/_index.md"));
+        // All six engine chapters are present.
+        for chapter in [
+            "Graphs and Proofs", "Math Studio", "Polyglot Coding",
+            "Data with DuckDB", "Spatial Thinking", "Native Power",
+        ] {
+            assert!(entries.iter().any(|entry| {
+                entry.path == format!("Buches/Bucher Interactive Showcase v2/concepts/{chapter}.md")
+            }), "missing chapter {chapter}");
+        }
+        fs::remove_dir_all(root.path().join("Buches/Bucher Interactive Showcase v2")).unwrap();
+        let entries = load(root.path()).unwrap();
+        assert!(!entries
+            .iter()
+            .any(|entry| entry.path.starts_with("Buches/Bucher Interactive Showcase v2/")));
     }
 
     #[test]

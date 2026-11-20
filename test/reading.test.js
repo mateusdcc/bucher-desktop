@@ -26,7 +26,8 @@ test('opens a legacy book, keeps its anchors and persists study changes in Markd
   });
   function reload() {
     library.load({ basePath: '/app-data', entries: [...disk].map(([path, source]) => ({ path, source })) });
-    return listBuches(library.app)[0];
+    // Select the legacy book by title: seeded showcase books sort before it.
+    return listBuches(library.app).find(book => book.title === 'Proofs in Linear Algebra');
   }
   const book = reload();
   const learning = new LearningIndex(library.app);

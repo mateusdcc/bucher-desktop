@@ -158,6 +158,7 @@ test('exercise fences become exercise nodes and extension state persists in _pro
     '> [!hint]- Hint', '> Think.', '',
     '```ext-viz', 'id: viz-1', 'value: 2', '```', '',
     '```ext-fake', 'value: 9', '```', '',
+    '```ext-fake', 'id: viz-explore', 'mode: explore', 'value: 3', '```', '',
   ].join('\n');
   const disk = new Map([
     ['Buches/Algorithms/_index.md', '---\ntitle: Algorithms\n---\n\n# Algorithms\n'],
@@ -170,7 +171,7 @@ test('exercise fences become exercise nodes and extension state persists in _pro
   const reload = () => library.load({ basePath: '/data', entries: [...disk].map(([path, source]) => ({ path, source })) });
   reload();
   const book = listBuches(library.app)[0];
-  const learning = new LearningIndex(library.app, id => id === 'ext-fake');
+  const learning = new LearningIndex(library.app, (id, payload) => id === 'ext-fake' && payload?.mode !== 'explore');
   const model = await learning.book(book);
   const chapter = model.chapters[0];
   const exercises = chapter.nodes.filter(node => node.type === 'exercise');
@@ -181,6 +182,9 @@ test('exercise fences become exercise nodes and extension state persists in _pro
   assert.equal(exercises[1].id, 'extension:ext-fake#1');
   const vizUnit = chapter.units.find(unit => unit.markdown.startsWith('```ext-viz'));
   assert.equal(vizUnit.node, undefined);
+  // Explore-mode payloads of exercise-category extensions are visualizations.
+  const exploreUnit = chapter.units.find(unit => unit.markdown.includes('id: viz-explore'));
+  assert.equal(exploreUnit.node, undefined);
 
   const progress = new BookProgress(library.app, {});
   assert.equal(countsFor(model, await progress.read(model)).exercises, 2);

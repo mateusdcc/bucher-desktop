@@ -37,7 +37,14 @@ const library = libraryModel.createLibrary(
   (path, text, expected) => invoke('save_markdown', { path, text, expected }),
   (path, expected) => invoke('discard_solution', { path, expected }),
 );
-const learning = new learningModel.LearningIndex(library.app, id => registry.isExercise(id));
+const learning = new learningModel.LearningIndex(library.app, (id, payload) => {
+  if (!registry.isExercise(id)) return false;
+  // Explore-mode blocks are visualizations, not solvable exercises: explicit
+  // mode: explore, or hybrid extensions whose mode defaults to explore.
+  if (payload?.mode === 'explore') return false;
+  if (registry.get(id)?.category === 'hybrid' && payload?.mode == null) return false;
+  return true;
+});
 const progress = new BookProgress(library.app, {});
 const plugin = { app: library.app, learning, solutionWrites: new Map() };
 const states = new Map();

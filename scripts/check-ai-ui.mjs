@@ -115,7 +115,13 @@ async function setup() {
     };
   }, entries);
   await page.goto('http://localhost/');
-  await page.getByRole('heading', { name: bookTitle, level: 1 }).waitFor();
+  // The app opens the first book alphabetically; navigate to the target book.
+  await page.locator('.tree-link').first().waitFor();
+  const heading = page.getByRole('heading', { name: bookTitle, level: 1 });
+  if (!(await heading.isVisible().catch(() => false))) {
+    await page.locator('.tree-link', { hasText: bookTitle }).first().click();
+  }
+  await heading.waitFor();
   return page;
 }
 

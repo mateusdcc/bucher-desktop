@@ -843,7 +843,13 @@ async function setup(entries = fixtureEntries, bookTitle = 'Extension Lab') {
     };
   }, entries);
   await page.goto('http://localhost/');
-  await page.getByRole('heading', { name: bookTitle, level: 1 }).waitFor();
+  // The app opens the first book alphabetically; navigate to the target book.
+  await page.locator('.tree-link').first().waitFor();
+  const heading = page.getByRole('heading', { name: bookTitle, level: 1 });
+  if (!(await heading.isVisible().catch(() => false))) {
+    await page.locator('.tree-link', { hasText: bookTitle }).first().click();
+  }
+  await heading.waitFor();
   return page;
 }
 
@@ -1720,6 +1726,68 @@ const scenarios = {
     assert.match(await git.locator('.workbench-log').textContent(), /git commit -m "add greeting"/);
     assert.equal(await pipe.locator('.extension-badge').textContent(), 'Passed');
   },
+  async showcaseV2(page) {
+    // The real seeded v2 book, loaded from demo/ exactly like the app seeds it.
+    await page.locator('.tree-link', { hasText: 'Bucher Interactive Showcase v2' }).first().click();
+    await page.getByRole('heading', { name: 'Bucher Interactive Showcase v2', level: 1 }).waitFor();
+    await page.getByText('0 of 8 exercises solved').waitFor();
+    await shot(page, 'showcase2-01-overview');
+    const noFallbacks = async () => assert.equal(await page.locator('article .extension-fallback').count(), 0);
+
+    // Every engine chapter renders its blocks without fallbacks.
+    await openChapter(page, 'Graphs and Proofs');
+    await page.locator('.extension-frame[data-extension="ext-interactive-graph"] .react-flow__node').first().waitFor({ timeout: 30000 });
+    assert.equal(await page.locator('.extension-frame[data-extension="ext-interactive-graph"]').count(), 2);
+    await noFallbacks();
+
+    await openChapter(page, 'Math Studio');
+    await page.locator('.extension-frame[data-extension="ext-desmos-lab"] .desmos-canvas').first().waitFor({ timeout: 30000 });
+    assert.equal(await page.locator('.extension-frame[data-extension="ext-desmos-lab"]').count(), 2);
+    await noFallbacks();
+
+    await openChapter(page, 'Polyglot Coding');
+    await page.locator('.extension-frame[data-extension="ext-polyglot-studio"] .cm-editor').first().waitFor({ timeout: 30000 });
+    assert.equal(await page.locator('.extension-frame[data-extension="ext-polyglot-studio"]').count(), 2);
+    await noFallbacks();
+
+    await openChapter(page, 'Data with DuckDB');
+    await page.locator('.extension-frame[data-extension="ext-sql-duckdb-lab"] .ducklab-table tbody tr').first().waitFor({ timeout: 90000 });
+    assert.equal(await page.locator('.extension-frame[data-extension="ext-sql-duckdb-lab"]').count(), 2);
+    await noFallbacks();
+
+    await openChapter(page, 'Spatial Thinking');
+    await page.locator('.extension-frame[data-extension="ext-3d-spatial-lab"] .spatial-canvas canvas').first().waitFor({ timeout: 60000 });
+    await page.waitForTimeout(1200);
+    assert.equal(await page.locator('.extension-frame[data-extension="ext-3d-spatial-lab"]').count(), 3);
+    await noFallbacks();
+    await shot(page, 'showcase2-02-spatial');
+
+    await openChapter(page, 'Native Power');
+    await page.locator('.extension-frame[data-extension="ext-tauri-native-workbench"] .workbench-terminal').first().waitFor({ timeout: 30000 });
+    await page.locator('.workbench-syscard').first().waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('.extension-frame[data-extension="ext-tauri-native-workbench"]').count(), 3);
+    await noFallbacks();
+    await shot(page, 'showcase2-03-native');
+
+    // Solve one exercise end-to-end: fit the line (m=1, b=1).
+    await openChapter(page, 'Math Studio');
+    const fit = page.locator('.extension-frame[data-block-key="id:showcase2-fit-line"]');
+    await fit.locator('.desmos-canvas').waitFor({ timeout: 30000 });
+    await fit.scrollIntoViewIfNeeded();
+    const setParam = (name, value) => fit.locator(`input[aria-label="Parameter ${name}"]`)
+      .evaluate((input, v) => {
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, v);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }, value);
+    await setParam('m', '1');
+    await setParam('b', '1');
+    await fit.locator('.extension-badge[data-status="passed"]').waitFor({ timeout: 15000 });
+
+    // The overview reflects the solved exercise.
+    await page.locator('.tree-link', { hasText: 'Bucher Interactive Showcase v2' }).first().click();
+    await page.getByText('1 of 8 exercises solved').waitFor({ timeout: 15000 });
+    await shot(page, 'showcase2-04-progress');
+  },
 };
 
 try {
@@ -1727,7 +1795,9 @@ try {
   const names = process.argv.length > 2 ? process.argv.slice(2) : Object.keys(scenarios);
   for (const name of names) {
     assert.ok(Object.hasOwn(scenarios, name), `Unknown UI test ${name}`);
-    const page = name === 'showcase' ? await setup(demoEntries, 'Proofs in Linear Algebra') : await setup();
+    const page = name === 'showcase' ? await setup(demoEntries, 'Proofs in Linear Algebra')
+      : name === 'showcaseV2' ? await setup(demoEntries, 'Bucher Interactive Showcase v2')
+        : await setup();
     const errors = [];
     page.on('pageerror', error => errors.push(error));
     page.on('console', message => {
