@@ -31,7 +31,7 @@ await writeFile(resolve(out, 'index.html'), `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <link rel="stylesheet" href="./ui-primitives-entry.css">
 <script src="./ui-primitives-entry.js" type="module"></script>
-</head><body><div id="app"></div></body></html>`);
+</head><body><div id="app"></div><div id="notice" role="status"></div></body></html>`);
 
 const browser = await chromium.launch({
   ...(existsSync(chromium.executablePath()) ? {} : { channel: 'chrome' }),
@@ -178,6 +178,77 @@ assert.equal(await page.getByTestId('param-h').locator('.ds-param-slider').isDis
 const lockedSlider = page.locator('#params .ds-param').nth(2).locator('.ds-param-slider');
 assert.equal(await lockedSlider.isDisabled(), true, 'disabled slider');
 assert.equal(await lockedSlider.getAttribute('aria-label'), 'Locked parameter');
+
+// 8g — card, panel header, collapse chevron
+const demoCard = page.getByTestId('demo-card');
+assert.equal(await demoCard.locator('.ds-panel-header .ds-badge--success').textContent(), 'warm');
+assert.equal(await demoCard.locator('.ds-panel-subtitle').textContent(), 'v1.0.0 · visualization');
+const chevron = demoCard.locator('.ds-panel-header .ds-icon-btn').first();
+assert.equal(await chevron.getAttribute('aria-expanded'), 'true');
+await chevron.click();
+assert.equal(await chevron.getAttribute('aria-expanded'), 'false');
+assert.equal(await page.evaluate(() => window.__collapsed), true);
+await chevron.click();
+assert.equal(await page.evaluate(() => window.__collapsed), false);
+
+// 8h — badges: all six variants present
+for (const variant of ['neutral', 'info', 'success', 'warning', 'danger', 'accent']) {
+  assert.equal(await page.locator(`#badges .ds-badge--${variant}`).count(), 1, `badge ${variant}`);
+}
+
+// 8i — tabs: click + arrow-key navigation + aria semantics
+const demoTabs = page.getByTestId('demo-tabs');
+assert.equal(await demoTabs.getAttribute('role'), 'tablist');
+const solutionTab = demoTabs.getByRole('tab', { name: 'Solution', exact: true });
+const aiTab = demoTabs.getByRole('tab', { name: 'AI solution' });
+assert.equal(await solutionTab.getAttribute('aria-selected'), 'true');
+assert.equal(await solutionTab.evaluate(node => node.tabIndex), 0);
+assert.equal(await aiTab.evaluate(node => node.tabIndex), -1);
+await aiTab.click();
+assert.equal(await page.evaluate(() => window.__tabValue), 'ai');
+assert.equal(await aiTab.getAttribute('aria-selected'), 'true');
+await aiTab.press('ArrowRight');
+assert.equal(await page.evaluate(() => window.__tabValue), 'compare');
+await demoTabs.getByRole('tab', { name: 'Compare' }).press('Home');
+assert.equal(await page.evaluate(() => window.__tabValue), 'solution');
+
+// 8j — callouts: tones, roles, actions
+assert.equal(await page.locator('#callouts .ds-callout').count(), 5);
+assert.equal(await page.getByTestId('callout-success').getAttribute('role'), 'status');
+assert.equal(await page.locator('#callouts .ds-callout--danger').getAttribute('role'), 'alert');
+assert.equal(await page.locator('#callouts .ds-callout--danger .ds-btn').count(), 1, 'callout action slot');
+
+// 8k — empty state, progress bar, spinner
+assert.equal(await page.locator('#misc .ds-empty-title').textContent(), 'No exercises yet');
+const demoProgress = page.getByTestId('demo-progress');
+assert.equal(await demoProgress.getAttribute('role'), 'progressbar');
+assert.equal(await demoProgress.getAttribute('aria-valuenow'), '38');
+assert.equal(await page.locator('#misc .ds-spinner[role="status"]').count(), 1);
+
+// 8l — modal: open, focus trap, Esc, close callback
+await page.getByTestId('open-modal').click();
+const demoModal = page.getByTestId('demo-modal');
+await demoModal.waitFor();
+assert.equal(await demoModal.evaluate(node => node.open), true);
+assert.equal(await demoModal.locator('.ds-modal-title').textContent(), 'New book');
+assert.equal(await demoModal.locator('.ds-modal-actions .ds-btn').count(), 2);
+await page.keyboard.press('Escape');
+await page.waitForFunction(() => !document.querySelector('[data-testid="demo-modal"]'));
+assert.equal(await page.evaluate(() => window.__modalClosed), 1);
+
+// 8m — drawer: open, scrim click closes, callback
+await page.getByTestId('open-drawer').click();
+const demoDrawer = page.getByTestId('demo-drawer');
+await demoDrawer.waitFor();
+assert.equal(await demoDrawer.getAttribute('role'), 'dialog');
+await page.locator('.ds-drawer-scrim').click({ position: { x: 10, y: 10 } });
+await page.waitForFunction(() => !document.querySelector('[data-testid="demo-drawer"]'));
+assert.equal(await page.evaluate(() => window.__drawerClosed), 1);
+
+// 8n — toast renders into #notice with semantic tone
+await page.getByTestId('show-toast').click();
+assert.equal(await page.locator('#notice').textContent(), 'Patch applied.');
+assert.equal(await page.locator('#notice').evaluate(node => node.classList.contains('ds-toast--success')), true);
 
 // 9 — token-driven theming: light parity flips surfaces.
 // Controls animate background/color over 120ms; let transitions settle.

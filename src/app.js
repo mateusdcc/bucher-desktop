@@ -7,6 +7,8 @@ import 'katex/dist/katex.css';
 import '@xyflow/react/dist/style.css';
 import './components/ui/controls.css';
 import './components/ui/inputs.css';
+import './components/ui/containers.css';
+import './components/ui/feedback.css';
 import './styles.css';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';

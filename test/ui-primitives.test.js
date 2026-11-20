@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buttonClasses, iconButtonClasses, ds } from '../src/components/ui/classes.ts';
 import { formatParamValue } from '../src/components/ui/parameter-slider.ts';
+import { exerciseBadgeVariant, runtimeBadgeVariant } from '../src/components/ui/badge.ts';
 
 test('button class composition covers variants, sizes, and extras', () => {
   assert.equal(buttonClasses(), 'ds-btn ds-btn--ghost ds-btn--md');
@@ -36,4 +37,14 @@ test('parameter readout formatting trims float noise and trailing zeros', () => 
   assert.equal(formatParamValue(1 / 3), '0.333333');
   assert.equal(formatParamValue(1 / 3, 2), '0.33');
   assert.equal(formatParamValue(Number.NaN), 'NaN');
+});
+
+test('status-to-badge variant mapping is semantic and total', () => {
+  assert.equal(exerciseBadgeVariant('unsolved'), 'neutral');
+  assert.equal(exerciseBadgeVariant('in-progress'), 'warning');
+  assert.equal(exerciseBadgeVariant('passed'), 'success');
+  assert.equal(runtimeBadgeVariant('cold'), 'neutral');
+  assert.equal(runtimeBadgeVariant('loading'), 'warning');
+  assert.equal(runtimeBadgeVariant('warm'), 'success');
+  assert.equal(runtimeBadgeVariant('error'), 'danger');
 });

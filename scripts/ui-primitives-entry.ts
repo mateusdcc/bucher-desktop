@@ -5,10 +5,14 @@
 import '../src/components/ui/tokens.css';
 import '../src/components/ui/controls.css';
 import '../src/components/ui/inputs.css';
+import '../src/components/ui/containers.css';
+import '../src/components/ui/feedback.css';
 import 'katex/dist/katex.css';
 import {
+  el,
   Button, IconButton, ToggleSwitch, SegmentedControl, setErrorHandler, setButtonLoading,
   Input, Textarea, Select, ParameterSlider,
+  Card, PanelHeader, Toolbar, Tabs, Badge, Modal, Drawer, CalloutBanner, EmptyState, Spinner, ProgressBar, Toast,
 } from '../src/components/ui/index.ts';
 
 declare global {
@@ -26,6 +30,10 @@ declare global {
     __paramValue: number;
     __paramSet: (value: number) => void;
     __paramDisable: (value: boolean) => void;
+    __tabValue: string;
+    __modalClosed: number;
+    __drawerClosed: number;
+    __collapsed: boolean;
   }
 }
 
@@ -183,3 +191,108 @@ const locked = ParameterSlider({
 paramRow.append(h.root, a.root, locked.root);
 window.__paramSet = value => h.setValue(value);
 window.__paramDisable = value => h.setDisabled(value);
+
+// 13 — card + panel header with badge and actions
+const cardRow = section('cards', 'Card & PanelHeader');
+cardRow.style.display = 'grid';
+cardRow.style.gridTemplateColumns = 'repeat(auto-fill, minmax(280px, 1fr))';
+cardRow.style.gap = '12px';
+window.__collapsed = false;
+const demoCard = Card({
+  padding: 'none', testId: 'demo-card',
+  children: [
+    PanelHeader({
+      icon: 'puzzle', title: 'ext-mermaid', subtitle: 'v1.0.0 · visualization',
+      badge: { variant: 'success', children: 'warm' },
+      collapsible: { expanded: true, onToggle: expanded => { window.__collapsed = !expanded; } },
+      actions: [IconButton({ icon: 'rotate-ccw', label: 'Reset state', size: 'sm' })],
+    }),
+    el('div', '', 'Card body content.'),
+  ],
+});
+const insetCard = Card({ inset: true, padding: 'sm', children: ['Inset surface for consoles and code.'] });
+cardRow.append(demoCard, insetCard);
+
+// 14 — toolbar + badges
+const badgeRow = section('badges', 'Toolbar & Badge');
+const badgeToolbar = Toolbar({
+  children: [
+    Button({ label: 'Run', variant: 'primary', size: 'sm', leftIcon: 'play' }),
+    Button({ label: 'Reset', size: 'sm', leftIcon: 'rotate-ccw' }),
+    Badge({ variant: 'neutral', children: 'Unsolved', testId: 'badge-unsolved' }),
+    Badge({ variant: 'warning', children: 'In Progress' }),
+    Badge({ variant: 'success', children: 'Passed', icon: 'check' }),
+    Badge({ variant: 'info', children: 'lazy-loaded' }),
+    Badge({ variant: 'danger', children: 'error' }),
+    Badge({ variant: 'accent', children: 'exercise' }),
+  ],
+});
+badgeRow.append(badgeToolbar);
+
+// 15 — tabs with keyboard navigation
+const tabRow = section('tabs', 'Tabs');
+const demoTabs = Tabs({
+  tabs: [
+    { value: 'solution', label: 'Solution', icon: 'file-text' },
+    { value: 'ai', label: 'AI solution', icon: 'sparkles' },
+    { value: 'compare', label: 'Compare', icon: 'columns-2' },
+  ],
+  value: 'solution', ariaLabel: 'Solution attempts', testId: 'demo-tabs',
+  onChange: value => { window.__tabValue = value; },
+});
+tabRow.append(demoTabs.root);
+
+// 16 — callout banners (all tones)
+const calloutRow = section('callouts', 'CalloutBanner');
+calloutRow.style.display = 'grid';
+calloutRow.style.gap = '8px';
+calloutRow.append(
+  CalloutBanner({ tone: 'success', title: 'All tests passed', children: ['3 of 3 assertions satisfied.'], testId: 'callout-success' }),
+  CalloutBanner({ tone: 'danger', title: 'Query failed', children: ['relation "orders" does not exist'], actions: [Button({ label: 'Retry', size: 'xs', leftIcon: 'refresh-cw' })] }),
+  CalloutBanner({ tone: 'warning', children: ['Native capability unavailable — running in degraded mode.'] }),
+  CalloutBanner({ tone: 'info', children: ['The engine loads lazily on first use.'] }),
+  CalloutBanner({ tone: 'hint', title: 'Hint 1', children: ['Try grouping by region first.'] }),
+);
+
+// 17 — empty state + progress + spinner
+const miscRow = section('misc', 'EmptyState, ProgressBar, Spinner');
+miscRow.style.display = 'grid';
+miscRow.style.gap = '12px';
+const progress = ProgressBar({ value: 3, max: 8, label: 'Exercises solved', testId: 'demo-progress' });
+miscRow.append(
+  EmptyState({ icon: 'clipboard-list', title: 'No exercises yet', hint: 'Add an exercise block to this chapter to start practicing.', action: Button({ label: 'Add exercise', size: 'sm', leftIcon: 'plus' }) }),
+  progress.root,
+  Spinner({ label: 'Loading engine' }),
+);
+
+// 18 — modal + drawer launchers (overlays are opened by the E2E driver)
+const overlayRow = section('overlays', 'Modal & Drawer');
+overlayRow.append(
+  Button({
+    label: 'Open modal', variant: 'secondary', testId: 'open-modal',
+    onClick: () => {
+      const modal = Modal({
+        title: 'New book', size: 'sm', testId: 'demo-modal',
+        onClose: () => { window.__modalClosed += 1; },
+      });
+      modal.body.append(Input({ label: 'Book title', placeholder: 'Enter a title' }).root);
+      modal.setActions([
+        Button({ label: 'Cancel', onClick: () => modal.close() }),
+        Button({ label: 'Create book', variant: 'primary', onClick: () => modal.close() }),
+      ]);
+    },
+  }),
+  Button({
+    label: 'Open drawer', variant: 'secondary', testId: 'open-drawer',
+    onClick: () => {
+      const drawer = Drawer({
+        title: 'Inspector', side: 'right', testId: 'demo-drawer',
+        onClose: () => { window.__drawerClosed += 1; },
+      });
+      drawer.body.append(CalloutBanner({ tone: 'info', children: ['Drawer content.'] }));
+    },
+  }),
+  Button({ label: 'Show toast', variant: 'secondary', testId: 'show-toast', onClick: () => Toast('Patch applied.') }),
+);
+window.__modalClosed = 0;
+window.__drawerClosed = 0;
