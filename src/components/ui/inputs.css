@@ -1,0 +1,118 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Design system — form inputs (Input, Textarea, Select, ParameterSlider).
+   ───────────────────────────────────────────────────────────────────────── */
+
+.ds-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  min-width: 0;
+}
+.ds-field-label { font-weight: var(--weight-medium); }
+
+.ds-input, .ds-textarea, .ds-select {
+  color: var(--text-primary);
+  background: var(--bg-field);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  font-size: var(--text-base);
+  line-height: 1.4;
+  min-width: 0;
+  transition: border-color .12s;
+}
+.ds-input--md, .ds-select--md { min-height: 34px; }
+.ds-input--sm, .ds-select--sm { min-height: 28px; padding: 4px 8px; font-size: var(--text-sm); }
+.ds-input--xs, .ds-select--xs { min-height: 24px; padding: 2px 6px; font-size: var(--text-xs); }
+.ds-input:hover, .ds-textarea:hover, .ds-select:hover { border-color: var(--border-strong); }
+.ds-input:focus, .ds-textarea:focus, .ds-select:focus { outline: none; border-color: var(--accent-primary); }
+.ds-input:focus-visible, .ds-textarea:focus-visible, .ds-select:focus-visible { outline: none; }
+.ds-input::placeholder, .ds-textarea::placeholder { color: var(--text-faint); }
+.ds-input:disabled, .ds-textarea:disabled, .ds-select:disabled { opacity: .52; cursor: not-allowed; }
+.ds-input--mono, .ds-textarea.ds-input--mono { font-family: var(--font-mono); font-size: var(--text-sm); }
+.ds-textarea { resize: vertical; }
+.ds-select { cursor: pointer; }
+.ds-select option { background: var(--bg-elevated); color: var(--text-primary); }
+
+/* Auto-grow textarea (grid overlay trick). The definite column forces the
+   ::after mirror to wrap at the real width so its height drives the row. */
+.ds-fit { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.ds-fit::after, .ds-fit .ds-textarea {
+  grid-area: 1 / 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ds-fit::after {
+  content: attr(data-value) ' ';
+  visibility: hidden;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  font-size: var(--text-base);
+  line-height: 1.4;
+}
+.ds-fit .ds-textarea { min-height: 0; overflow: hidden; resize: none; }
+
+/* ParameterSlider — label + live readout + range + reset */
+.ds-param {
+  display: grid;
+  grid-template-columns: minmax(18px, auto) minmax(0, 1fr) minmax(48px, auto) auto;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-base);
+}
+.ds-param-name {
+  color: var(--text-primary);
+  font-style: italic;
+  font-family: var(--font-reader);
+  text-align: center;
+  white-space: nowrap;
+}
+.ds-param-value {
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ds-param-value--tex { font-family: inherit; }
+.ds-param-value--tex .katex { font-size: 1em; }
+.ds-param-reset { color: var(--text-faint); }
+.ds-param-reset:disabled { opacity: .35; }
+
+.ds-param-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--border-strong);
+  cursor: pointer;
+}
+.ds-param-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: var(--radius-full);
+  background: var(--accent-primary);
+  border: 0;
+  transition: transform .1s;
+}
+.ds-param-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
+.ds-param-slider::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: var(--radius-full);
+  background: var(--accent-primary);
+  border: 0;
+}
+.ds-param-slider::-moz-range-track { height: 4px; border-radius: var(--radius-full); background: var(--border-strong); }
+.ds-param-slider:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 4px; }
+.ds-param-slider:disabled { opacity: .52; cursor: not-allowed; }

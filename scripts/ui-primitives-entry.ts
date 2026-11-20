@@ -4,8 +4,11 @@
  */
 import '../src/components/ui/tokens.css';
 import '../src/components/ui/controls.css';
+import '../src/components/ui/inputs.css';
+import 'katex/dist/katex.css';
 import {
   Button, IconButton, ToggleSwitch, SegmentedControl, setErrorHandler, setButtonLoading,
+  Input, Textarea, Select, ParameterSlider,
 } from '../src/components/ui/index.ts';
 
 declare global {
@@ -17,6 +20,12 @@ declare global {
     __segValue: string;
     __segSet: (value: 'code' | 'output' | 'preview') => void;
     __submits: number;
+    __inputValue: string;
+    __textareaValue: string;
+    __selectValue: string;
+    __paramValue: number;
+    __paramSet: (value: number) => void;
+    __paramDisable: (value: boolean) => void;
   }
 }
 
@@ -126,3 +135,51 @@ form.addEventListener('submit', event => {
 });
 form.append(Button({ label: 'Save changes', variant: 'primary', type: 'submit', leftIcon: 'check', testId: 'submit-btn' }));
 formRow.append(form);
+
+// 9 — input with label + onInput
+const inputRow = section('input', 'Input');
+const nameInput = Input({
+  label: 'Book title', placeholder: 'Enter a title', testId: 'demo-input',
+  onInput: value => { window.__inputValue = value; },
+});
+inputRow.append(nameInput.root);
+
+// 10 — auto-grow textarea + source textarea
+const textareaRow = section('textarea', 'Textarea');
+const question = Textarea({
+  label: 'Question', autoGrow: true, rows: 1, testId: 'demo-textarea',
+  onInput: value => { window.__textareaValue = value; },
+});
+const source = Textarea({ label: 'Source', source: true, rows: 3, value: '# Title\n\nBody text.', ariaLabel: 'Markdown source' });
+textareaRow.append(question.root, source.root);
+
+// 11 — select
+const selectRow = section('select', 'Select');
+const provider = Select({
+  label: 'AI provider', value: 'ollama', testId: 'demo-select',
+  options: [{ value: 'ollama', label: 'Ollama' }, { value: 'chatgpt', label: 'ChatGPT' }],
+  onChange: value => { window.__selectValue = value; },
+});
+selectRow.append(provider.root);
+
+// 12 — parameter sliders: plain, with reset, with live TeX
+const paramRow = section('params', 'ParameterSlider');
+paramRow.style.display = 'grid';
+paramRow.style.gridTemplateColumns = 'repeat(auto-fill, minmax(240px, 1fr))';
+paramRow.style.gap = '10px 24px';
+const h = ParameterSlider({
+  name: 'h', value: 0, min: -4, max: 4, step: 0.1, defaultValue: 0, testId: 'param-h',
+  onInput: value => { window.__paramValue = value; },
+});
+const a = ParameterSlider({
+  name: 'a', value: 1, min: -3, max: 3, step: 0.05, defaultValue: 1,
+  tex: value => `a = ${value.toFixed(2)}`, testId: 'param-a',
+  onInput: () => {},
+});
+const locked = ParameterSlider({
+  name: 'k', value: 2, min: 0, max: 5, step: 1, disabled: true, ariaLabel: 'Locked parameter',
+  onInput: () => {},
+});
+paramRow.append(h.root, a.root, locked.root);
+window.__paramSet = value => h.setValue(value);
+window.__paramDisable = value => h.setDisabled(value);

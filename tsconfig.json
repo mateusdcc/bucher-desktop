@@ -17,5 +17,5 @@
     "forceConsistentCasingInFileNames": true,
     "types": []
   },
-  "include": ["src/extensions/**/*.js", "src/extensions/**/*.tsx", "src/extensions/**/*.d.ts", "src/components/**/*.ts", "src/components/**/*.tsx"]
+  "include": ["src/extensions/**/*.js", "src/extensions/**/*.tsx", "src/extensions/**/*.d.ts", "src/components/**/*.ts", "src/components/**/*.tsx", "scripts/ui-primitives-entry.ts"]
 }

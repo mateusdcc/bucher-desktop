@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buttonClasses, iconButtonClasses, ds } from '../src/components/ui/classes.ts';
+import { formatParamValue } from '../src/components/ui/parameter-slider.ts';
 
 test('button class composition covers variants, sizes, and extras', () => {
   assert.equal(buttonClasses(), 'ds-btn ds-btn--ghost ds-btn--md');
@@ -25,4 +26,14 @@ test('ds class map is the single naming source', () => {
   assert.equal(ds.switch, 'ds-switch');
   assert.equal(ds.segmented, 'ds-segmented');
   assert.ok(buttonClasses('primary').startsWith(ds.button));
+});
+
+test('parameter readout formatting trims float noise and trailing zeros', () => {
+  assert.equal(formatParamValue(2), '2');
+  assert.equal(formatParamValue(2.5), '2.5');
+  assert.equal(formatParamValue(0.1 + 0.2), '0.3');
+  assert.equal(formatParamValue(-1.25), '-1.25');
+  assert.equal(formatParamValue(1 / 3), '0.333333');
+  assert.equal(formatParamValue(1 / 3, 2), '0.33');
+  assert.equal(formatParamValue(Number.NaN), 'NaN');
 });

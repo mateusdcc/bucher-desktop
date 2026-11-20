@@ -19,6 +19,19 @@ export const ds = {
   switchKnob: 'ds-switch-knob',
   segmented: 'ds-segmented',
   segmentedItem: 'ds-segmented-item',
+  field: 'ds-field',
+  fieldLabel: 'ds-field-label',
+  input: 'ds-input',
+  inputMono: 'ds-input--mono',
+  textarea: 'ds-textarea',
+  fit: 'ds-fit',
+  select: 'ds-select',
+  param: 'ds-param',
+  paramName: 'ds-param-name',
+  paramSlider: 'ds-param-slider',
+  paramValue: 'ds-param-value',
+  paramValueTex: 'ds-param-value--tex',
+  paramReset: 'ds-param-reset',
 } as const;
 
 const BUTTON_VARIANTS: readonly ButtonVariant[] = ['primary', 'secondary', 'ghost', 'danger', 'success'];

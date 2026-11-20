@@ -23,6 +23,8 @@ await build({
   format: 'esm',
   outdir: out,
   jsx: 'automatic',
+  assetNames: 'assets/[name]-[hash]',
+  loader: { '.woff2': 'file', '.woff': 'file', '.ttf': 'file', '.svg': 'file', '.css': 'css' },
   logLevel: 'silent',
 });
 await writeFile(resolve(out, 'index.html'), `<!doctype html>
@@ -119,6 +121,63 @@ assert.equal(await seg.locator('svg').count(), 3, 'segment icons render');
 // 8 — submit button drives its form
 await page.getByTestId('submit-btn').click();
 assert.equal(await page.evaluate(() => window.__submits), 1);
+
+// 8b — input: label association, typing, onInput
+const demoInput = page.getByTestId('demo-input');
+await page.locator('#input .ds-field-label').click();
+assert.equal(await demoInput.evaluate(node => document.activeElement === node), true, 'label focuses input');
+await demoInput.fill('Linear Algebra');
+assert.equal(await page.evaluate(() => window.__inputValue), 'Linear Algebra');
+
+// 8c — auto-grow textarea grows with content; source textarea is monospace
+const demoTextarea = page.getByTestId('demo-textarea');
+const shortHeight = await demoTextarea.evaluate(node => node.getBoundingClientRect().height);
+await demoTextarea.fill('A very long question that wraps across several lines because the field auto-grows with its content instead of scrolling. '.repeat(3));
+const tallHeight = await demoTextarea.evaluate(node => node.getBoundingClientRect().height);
+assert.ok(tallHeight > shortHeight, 'auto-grow textarea grows');
+assert.equal(await page.evaluate(() => window.__textareaValue.includes('auto-grows')), true);
+const sourceFont = await page.locator('#textarea .ds-textarea').nth(1).evaluate(node => getComputedStyle(node).fontFamily);
+assert.match(sourceFont, /mono/i, 'source textarea uses the mono stack');
+
+// 8d — select change + typed value
+await page.getByTestId('demo-select').selectOption('chatgpt');
+assert.equal(await page.evaluate(() => window.__selectValue), 'chatgpt');
+
+// 8e — parameter slider: keyboard stepping, readout, reset, imperative API
+const paramH = page.getByTestId('param-h');
+const hSlider = paramH.locator('.ds-param-slider');
+const hReadout = paramH.locator('.ds-param-value');
+const hReset = paramH.locator('.ds-param-reset');
+assert.equal(await hReadout.textContent(), '0');
+assert.equal(await hReset.isDisabled(), true, 'reset disabled at default');
+await hSlider.focus();
+await hSlider.press('ArrowRight');
+await hSlider.press('ArrowRight');
+assert.equal(await page.evaluate(() => window.__paramValue), 0.2);
+assert.equal(await hReadout.textContent(), '0.2');
+assert.equal(await hReset.isDisabled(), false, 'reset enabled away from default');
+await hReset.click();
+assert.equal(await page.evaluate(() => window.__paramValue), 0);
+assert.equal(await hReadout.textContent(), '0');
+await page.evaluate(() => window.__paramSet(2.5));
+assert.equal(await hReadout.textContent(), '2.5');
+assert.equal(await hSlider.inputValue(), '2.5');
+await page.evaluate(() => window.__paramDisable(true));
+assert.equal(await hSlider.isDisabled(), true);
+await page.evaluate(() => window.__paramDisable(false));
+assert.equal(await hSlider.isDisabled(), false);
+
+// 8f — live TeX readout renders KaTeX and updates with the value
+const paramA = page.getByTestId('param-a');
+assert.equal(await paramA.locator('.ds-param-value .katex').count(), 1, 'KaTeX readout renders');
+assert.match(await paramA.locator('.ds-param-value').textContent(), /a=1\.00/);
+await paramA.locator('.ds-param-slider').focus();
+await paramA.locator('.ds-param-slider').press('ArrowRight');
+assert.match(await paramA.locator('.ds-param-value').textContent(), /a=1\.05/);
+assert.equal(await page.getByTestId('param-h').locator('.ds-param-slider').isDisabled(), false);
+const lockedSlider = page.locator('#params .ds-param').nth(2).locator('.ds-param-slider');
+assert.equal(await lockedSlider.isDisabled(), true, 'disabled slider');
+assert.equal(await lockedSlider.getAttribute('aria-label'), 'Locked parameter');
 
 // 9 — token-driven theming: light parity flips surfaces.
 // Controls animate background/color over 120ms; let transitions settle.
