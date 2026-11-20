@@ -1,0 +1,179 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Bücher Design System — semantic tokens (single source of truth for color)
+   Dark is the default; light parity via html[data-theme="light"].
+   No hex values belong outside this file and palette.ts (canvas/WebGL).
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root,
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Surface elevation ladder */
+  --bg-app: #171717;
+  --bg-sidebar: #181818;
+  --bg-surface: #1b1d1b;
+  --bg-elevated: #222322;
+  --bg-inset: #141614;
+  --bg-field: #191a19;
+  --bg-interactive: #232623;
+  --bg-hover: #222322;
+  --bg-selected: #242624;
+
+  /* Borders */
+  --border-subtle: #2c312c;
+  --border-strong: #353b36;
+  --border-focus: var(--accent-primary);
+
+  /* Text */
+  --text-primary: #eeeee9;
+  --text-secondary: #deded9;
+  --text-muted: #9c9d95;
+  --text-faint: #8b8e85;
+
+  /* Accent */
+  --accent-primary: #73d695;
+  --accent-primary-hover: #a1f0b7;
+  --accent-surface: #202a23;
+  --accent-surface-hover: #27372c;
+  --accent-text: #d6e7d7;
+
+  /* Status */
+  --status-success: var(--accent-primary);
+  --status-success-surface: #20301f;
+  --status-success-border: #2c4a35;
+  --status-warning: #d9c97a;
+  --status-warning-surface: #32301f;
+  --status-warning-border: #4a4433;
+  --status-danger: #e8927c;
+  --status-danger-surface: #2a1f1b;
+  --status-danger-border: #4a3a33;
+  --status-info: #6fb7e8;
+  --status-info-surface: #1d2733;
+  --status-info-border: #2c4055;
+
+  /* Selection & effects */
+  --selection-bg: #365744;
+  --selection-text: #f5f6f2;
+  --shadow-dialog: 0 20px 90px rgb(0 0 0 / .47);
+  --shadow-float: 0 12px 40px rgb(0 0 0 / .6);
+  --backdrop: rgb(10 10 10 / .73);
+  --scrollbar-thumb: #353b36;
+  --scrollbar-thumb-hover: #4a504a;
+
+  /* Data-viz palette (resolved by palette.ts for canvas/WebGL/SVG) */
+  --viz-1: #e88f9f;
+  --viz-2: #73d695;
+  --viz-3: #6fb7e8;
+  --viz-4: #e8d06f;
+  --viz-5: #b48fe8;
+  --viz-6: #e8a86f;
+  --viz-grid: #2c312c;
+  --viz-axis: #5a605a;
+  --viz-label: #deded9;
+  --viz-canvas: #161816;
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-app: #ffffff;
+  --bg-sidebar: #fafaf8;
+  --bg-surface: #f7f7f5;
+  --bg-elevated: #ffffff;
+  --bg-inset: #f0f0ee;
+  --bg-field: #ffffff;
+  --bg-interactive: #ececea;
+  --bg-hover: #f0f0ee;
+  --bg-selected: #e8e8e4;
+
+  --border-subtle: #e4e4e0;
+  --border-strong: #d4d4cf;
+
+  --text-primary: #1a1a18;
+  --text-secondary: #33332f;
+  --text-muted: #6b6b64;
+  --text-faint: #8a8a82;
+
+  --accent-primary: #1f9d55;
+  --accent-primary-hover: #178a49;
+  --accent-surface: #e3f4e9;
+  --accent-surface-hover: #d3ecdc;
+  --accent-text: #14532d;
+
+  --status-success-surface: #e3f4e9;
+  --status-success-border: #b7dfc4;
+  --status-warning: #9a7b1c;
+  --status-warning-surface: #f7efd8;
+  --status-warning-border: #e2d3a8;
+  --status-danger: #c2452d;
+  --status-danger-surface: #fbe9e4;
+  --status-danger-border: #ecc4b8;
+  --status-info: #2270b5;
+  --status-info-surface: #e3eef8;
+  --status-info-border: #bcd7ee;
+
+  --selection-bg: #cde8d5;
+  --selection-text: #14532d;
+  --shadow-dialog: 0 20px 90px rgb(0 0 0 / .18);
+  --shadow-float: 0 12px 40px rgb(0 0 0 / .16);
+  --backdrop: rgb(20 20 18 / .32);
+  --scrollbar-thumb: #d4d4cf;
+  --scrollbar-thumb-hover: #b9b9b2;
+
+  --viz-1: #d15672;
+  --viz-2: #1f9d55;
+  --viz-3: #2270b5;
+  --viz-4: #b08a1e;
+  --viz-5: #8a5fc9;
+  --viz-6: #cf6a28;
+  --viz-grid: #d4d4cf;
+  --viz-axis: #8a8a82;
+  --viz-label: #33332f;
+  --viz-canvas: #fafaf8;
+}
+
+/* Typography, spacing, radius — shared scales */
+:root {
+  --font-ui: 'Inter Variable', system-ui, sans-serif;
+  --font-reader: 'Spectral', Georgia, serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 650;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-full: 999px;
+
+  /* Deprecated legacy aliases — removed in the dead-style cleanup commit. */
+  --surface: var(--bg-app);
+  --sidebar: var(--bg-sidebar);
+  --hover: var(--bg-hover);
+  --selected: var(--bg-selected);
+  --text: var(--text-secondary);
+  --strong: var(--text-primary);
+  --muted: var(--text-muted);
+  --quiet: var(--text-faint);
+  --accent: var(--accent-primary);
+  --reader: var(--font-reader);
+}
