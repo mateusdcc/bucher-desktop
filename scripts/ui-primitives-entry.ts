@@ -7,12 +7,14 @@ import '../src/components/ui/controls.css';
 import '../src/components/ui/inputs.css';
 import '../src/components/ui/containers.css';
 import '../src/components/ui/feedback.css';
+import '../src/components/ui/workbench.css';
 import 'katex/dist/katex.css';
 import {
   el,
   Button, IconButton, ToggleSwitch, SegmentedControl, setErrorHandler, setButtonLoading,
   Input, Textarea, Select, ParameterSlider,
   Card, PanelHeader, Toolbar, Tabs, Badge, Modal, Drawer, CalloutBanner, EmptyState, Spinner, ProgressBar, Toast,
+  ConsoleOutput, InteractiveWorkbench, SplitPane, PlaybackControls,
 } from '../src/components/ui/index.ts';
 
 declare global {
@@ -34,6 +36,20 @@ declare global {
     __modalClosed: number;
     __drawerClosed: number;
     __collapsed: boolean;
+    __wbReset: number;
+    __wbHint: number;
+    __wbRun: number;
+    __consoleAppend: (kind: 'cmd' | 'stdout' | 'stderr' | 'info', text: string, meta?: string) => void;
+    __consoleClear: () => void;
+    __consoleOpen: (open: boolean) => void;
+    __playing: boolean;
+    __playToggle: () => void;
+    __stepBack: () => void;
+    __stepForward: () => void;
+    __speed: number;
+    __playSetPlaying: (value: boolean) => void;
+    __playSetIndex: (index: number, count: number) => void;
+    __playSetReadout: (text: string) => void;
   }
 }
 
@@ -296,3 +312,76 @@ overlayRow.append(
 );
 window.__modalClosed = 0;
 window.__drawerClosed = 0;
+
+// 19 — InteractiveWorkbench with console + footer
+const wbRow = section('workbench', 'InteractiveWorkbench');
+wbRow.style.display = 'block';
+window.__wbReset = 0;
+window.__wbHint = 0;
+window.__wbRun = 0;
+const wbConsole = ConsoleOutput({ title: 'Terminal', collapsible: true, maxHeight: 140, testId: 'wb-console' });
+wbConsole.append({ kind: 'cmd', text: 'git status', meta: 'exit 0' });
+wbConsole.append({ kind: 'stdout', text: 'On branch main\nnothing to commit' });
+const workbench = InteractiveWorkbench({
+  description: el('p', '', 'A standardized interactive shell.'),
+  toolbar: [Badge({ variant: 'info', children: 'DuckDB 1.32' })],
+  status: Badge({ variant: 'warning', children: 'In Progress', testId: 'wb-status' }),
+  stage: Card({ inset: true, padding: 'sm', children: ['Stage: editor / canvas goes here.'] }),
+  console: wbConsole,
+  footer: {
+    reset: () => { window.__wbReset += 1; },
+    hint: () => { window.__wbHint += 1; },
+    run: { label: 'Run query', onClick: async () => { window.__wbRun += 1; } },
+  },
+  testId: 'demo-workbench',
+});
+wbRow.append(workbench.root);
+window.__consoleAppend = (kind, text, meta) => wbConsole.append({ kind, text, meta });
+window.__consoleClear = () => wbConsole.clear();
+window.__consoleOpen = open => workbench.setConsoleOpen(open);
+
+// 20 — PlaybackControls
+const playRow = section('playback', 'PlaybackControls');
+window.__playing = false;
+window.__speed = 1;
+let playIndex = 0;
+const playback = PlaybackControls({
+  playing: false,
+  onTogglePlay: () => { window.__playing = !window.__playing; playback.setPlaying(window.__playing); },
+  onStepBack: () => { playIndex = Math.max(0, playIndex - 1); playback.setIndex(playIndex, 12); },
+  onStepForward: () => { playIndex = Math.min(11, playIndex + 1); playback.setIndex(playIndex, 12); },
+  index: 0, count: 12,
+  onScrub: index => { playIndex = index; playback.setIndex(index, 12); },
+  speed: 1,
+  onSpeedChange: speed => { window.__speed = speed; },
+  readout: 'step 1',
+  ariaLabel: 'Algorithm player',
+  testId: 'demo-playback',
+});
+playRow.append(playback.root);
+window.__playToggle = () => { window.__playing = !window.__playing; playback.setPlaying(window.__playing); };
+window.__stepBack = () => { playIndex = Math.max(0, playIndex - 1); playback.setIndex(playIndex, 12); };
+window.__stepForward = () => { playIndex = Math.min(11, playIndex + 1); playback.setIndex(playIndex, 12); };
+window.__playSetPlaying = value => playback.setPlaying(value);
+window.__playSetIndex = (index, count) => playback.setIndex(index, count);
+window.__playSetReadout = text => playback.setReadout(text);
+
+// 21 — SplitPane (horizontal + vertical)
+const splitRow = section('split', 'SplitPane');
+splitRow.style.display = 'grid';
+splitRow.style.gap = '12px';
+const hSplit = SplitPane({
+  direction: 'horizontal', initial: 220, min: 120, max: 400, storageKey: 'demo-hsplit', name: 'Resize demo split',
+  first: Card({ inset: true, padding: 'sm', children: ['First pane'] }),
+  second: Card({ padding: 'sm', children: ['Second pane'] }),
+});
+hSplit.style.height = '120px';
+hSplit.dataset.testid = 'demo-hsplit';
+const vSplit = SplitPane({
+  direction: 'vertical', initial: 60, min: 30, max: 160, storageKey: 'demo-vsplit', name: 'Resize demo vertical split',
+  first: Card({ inset: true, padding: 'sm', children: ['Top pane'] }),
+  second: Card({ padding: 'sm', children: ['Bottom pane'] }),
+});
+vSplit.style.height = '160px';
+vSplit.dataset.testid = 'demo-vsplit';
+splitRow.append(hSplit, vSplit);

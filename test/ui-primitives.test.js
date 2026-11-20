@@ -3,6 +3,8 @@ import test from 'node:test';
 import { buttonClasses, iconButtonClasses, ds } from '../src/components/ui/classes.ts';
 import { formatParamValue } from '../src/components/ui/parameter-slider.ts';
 import { exerciseBadgeVariant, runtimeBadgeVariant } from '../src/components/ui/badge.ts';
+import { consoleEntryClass } from '../src/components/ui/workbench.ts';
+import { PLAYBACK_SPEEDS } from '../src/components/ui/playback.ts';
 
 test('button class composition covers variants, sizes, and extras', () => {
   assert.equal(buttonClasses(), 'ds-btn ds-btn--ghost ds-btn--md');
@@ -47,4 +49,10 @@ test('status-to-badge variant mapping is semantic and total', () => {
   assert.equal(runtimeBadgeVariant('loading'), 'warning');
   assert.equal(runtimeBadgeVariant('warm'), 'success');
   assert.equal(runtimeBadgeVariant('error'), 'danger');
+});
+
+test('console entry classes and playback speeds are canonical', () => {
+  assert.equal(consoleEntryClass('cmd'), 'ds-console-entry ds-console-entry--cmd');
+  assert.equal(consoleEntryClass('stderr'), 'ds-console-entry ds-console-entry--stderr');
+  assert.deepEqual([...PLAYBACK_SPEEDS], [0.5, 1, 1.5, 2]);
 });

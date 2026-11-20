@@ -9,6 +9,7 @@ import './components/ui/controls.css';
 import './components/ui/inputs.css';
 import './components/ui/containers.css';
 import './components/ui/feedback.css';
+import './components/ui/workbench.css';
 import './styles.css';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';

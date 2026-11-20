@@ -1,0 +1,130 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Design system — extension shells (InteractiveWorkbench, ConsoleOutput,
+   SplitPane, PlaybackControls).
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ConsoleOutput */
+.ds-console {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  min-width: 0;
+  overflow: hidden;
+}
+.ds-console-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-muted);
+}
+.ds-console-head--toggle { justify-content: space-between; }
+.ds-console-title { font-weight: var(--weight-semibold); }
+.ds-console-log {
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  scrollbar-width: thin;
+}
+.ds-console-entry { display: flex; gap: var(--space-2); align-items: baseline; margin-bottom: 6px; }
+.ds-console-entry:last-child { margin-bottom: 0; }
+.ds-console-meta { margin-left: auto; order: 2; flex: 0 0 auto; color: var(--text-faint); font-size: var(--text-xs); }
+.ds-console-text { white-space: pre-wrap; word-break: break-word; min-width: 0; }
+.ds-console-entry--cmd .ds-console-text { color: var(--text-primary); }
+.ds-console-entry--cmd .ds-console-text::before { content: '❯ '; color: var(--accent-primary); }
+.ds-console-entry--stdout .ds-console-text { color: var(--text-secondary); }
+.ds-console-entry--stderr .ds-console-text { color: var(--status-danger); }
+.ds-console-entry--info .ds-console-text { color: var(--text-muted); font-style: italic; }
+
+/* InteractiveWorkbench */
+.ds-workbench { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.ds-workbench-description { font-size: var(--text-base); color: var(--text-secondary); }
+.ds-workbench-description > :first-child { margin-top: 0; }
+.ds-workbench-stage { min-width: 0; }
+.ds-workbench-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding-top: var(--space-1);
+}
+.ds-workbench-run { margin-left: auto; }
+
+/* SplitPane */
+.ds-split { display: grid; position: relative; min-width: 0; min-height: 0; }
+.ds-split--horizontal { grid-template-columns: minmax(0, 1fr) var(--ds-split, 300px); }
+.ds-split--vertical { grid-template-rows: minmax(0, 1fr) var(--ds-split, 240px); }
+.ds-split-first, .ds-split-second { position: relative; min-width: 0; min-height: 0; }
+/* Inner scroller keeps the pane itself overflow-visible so the separator
+   handle (which straddles the pane edge) is never clipped. */
+.ds-split-content { position: absolute; inset: 0; overflow: auto; scrollbar-width: thin; }
+.ds-split--horizontal > .ds-split-second > .panel-resizer { left: -5px; }
+.ds-split--vertical > .ds-split-second > .panel-resizer { top: -5px; }
+
+/* Panel separator (shared with the app shell resizers) */
+.panel-resizer { position: absolute; z-index: 2; inset-block: 0; width: 10px; cursor: col-resize; touch-action: none; }
+.panel-resizer::after { content: ''; position: absolute; inset: 0 auto 0 4px; width: 2px; background: transparent; }
+.panel-resizer:is(:hover, :focus-visible, .dragging)::after { background: var(--accent-primary); }
+.panel-resizer:focus-visible { outline: none; }
+
+/* Row-oriented separator (vertical splits) */
+.panel-resizer--row { inset: 0 0 auto 0; width: auto; height: 10px; cursor: row-resize; }
+.panel-resizer--row::after { inset: 4px 0 auto 0; width: auto; height: 2px; }
+
+/* PlaybackControls */
+.ds-playback {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.ds-playback-scrub {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 80px;
+  height: 4px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--border-strong);
+  cursor: pointer;
+}
+.ds-playback-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: var(--radius-full);
+  background: var(--accent-primary);
+  border: 0;
+}
+.ds-playback-scrub::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: var(--radius-full);
+  background: var(--accent-primary);
+  border: 0;
+}
+.ds-playback-scrub:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 4px; }
+.ds-playback-counter {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ds-playback-readout {
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

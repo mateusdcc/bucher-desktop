@@ -25,3 +25,7 @@ export { Modal, Drawer } from './modal.ts';
 export type { ModalProps, ModalHandle, DrawerProps, DrawerHandle } from './modal.ts';
 export { CalloutBanner, EmptyState, Spinner, ProgressBar, Toast } from './feedback.ts';
 export type { CalloutBannerProps, EmptyStateProps, SpinnerProps, ProgressBarProps, ProgressBarHandle } from './feedback.ts';
+export { ConsoleOutput, InteractiveWorkbench, SplitPane, consoleEntryClass } from './workbench.ts';
+export type { ConsoleEntry, ConsoleOutputProps, ConsoleOutputHandle, InteractiveWorkbenchProps, InteractiveWorkbenchHandle, WorkbenchFooter, SplitPaneProps } from './workbench.ts';
+export { PlaybackControls, PLAYBACK_SPEEDS } from './playback.ts';
+export type { PlaybackControlsProps, PlaybackControlsHandle, PlaybackSpeed } from './playback.ts';

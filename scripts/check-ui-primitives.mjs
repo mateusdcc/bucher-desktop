@@ -250,6 +250,80 @@ await page.getByTestId('show-toast').click();
 assert.equal(await page.locator('#notice').textContent(), 'Patch applied.');
 assert.equal(await page.locator('#notice').evaluate(node => node.classList.contains('ds-toast--success')), true);
 
+// 8o — workbench anatomy: toolbar, status slot, stage, console, footer
+const demoWorkbench = page.getByTestId('demo-workbench');
+assert.equal(await demoWorkbench.locator('.ds-toolbar .ds-badge--info').textContent(), 'DuckDB 1.32');
+assert.equal(await demoWorkbench.locator('.ds-toolbar-status .ds-badge--warning').textContent(), 'In Progress');
+assert.equal(await demoWorkbench.locator('.ds-workbench-stage .ds-card--inset').count(), 1);
+const wbConsole = page.getByTestId('wb-console');
+assert.equal(await wbConsole.locator('.ds-console-entry--cmd').count(), 1);
+assert.equal(await wbConsole.locator('.ds-console-entry--stdout').count(), 1);
+assert.equal(await wbConsole.locator('.ds-console-meta').textContent(), 'exit 0');
+await page.evaluate(() => window.__consoleAppend('stderr', 'fatal: not a git repository', 'exit 128'));
+assert.equal(await wbConsole.locator('.ds-console-entry--stderr').count(), 1);
+await page.evaluate(() => window.__consoleOpen(false));
+assert.equal(await wbConsole.locator('.ds-console-log').isHidden(), true);
+await page.evaluate(() => window.__consoleOpen(true));
+assert.equal(await wbConsole.locator('.ds-console-log').isVisible(), true);
+await page.evaluate(() => window.__consoleClear());
+assert.equal(await wbConsole.locator('.ds-console-entry').count(), 0);
+await demoWorkbench.locator('.ds-workbench-footer .ds-btn', { hasText: 'Reset' }).click();
+await demoWorkbench.locator('.ds-workbench-footer .ds-btn', { hasText: 'Hint' }).click();
+await demoWorkbench.locator('.ds-workbench-run').click();
+assert.deepEqual(await page.evaluate(() => [window.__wbReset, window.__wbHint, window.__wbRun]), [1, 1, 1]);
+
+// 8p — playback: play/pause, stepping, scrubber, speed, readout
+const demoPlayback = page.getByTestId('demo-playback');
+const playButton = demoPlayback.getByRole('button', { name: 'Play', exact: true });
+await playButton.click();
+assert.equal(await page.evaluate(() => window.__playing), true);
+assert.equal(await demoPlayback.getByRole('button', { name: 'Pause', exact: true }).count(), 1);
+await demoPlayback.getByRole('button', { name: 'Pause', exact: true }).click();
+assert.equal(await page.evaluate(() => window.__playing), false);
+await demoPlayback.getByRole('button', { name: 'Step forward' }).click();
+await demoPlayback.getByRole('button', { name: 'Step forward' }).click();
+assert.equal(await demoPlayback.locator('.ds-playback-counter').textContent(), '3 / 12');
+await demoPlayback.getByRole('button', { name: 'Step back' }).click();
+assert.equal(await demoPlayback.locator('.ds-playback-counter').textContent(), '2 / 12');
+const scrubber = demoPlayback.locator('.ds-playback-scrub');
+await scrubber.focus();
+await scrubber.press('End');
+assert.equal(await demoPlayback.locator('.ds-playback-counter').textContent(), '12 / 12');
+await demoPlayback.locator('.ds-select').selectOption('1.5');
+assert.equal(await page.evaluate(() => window.__speed), 1.5);
+assert.equal(await demoPlayback.locator('.ds-playback-readout').textContent(), 'step 1');
+await page.evaluate(() => window.__playSetReadout('t = 2.50'));
+assert.equal(await demoPlayback.locator('.ds-playback-readout').textContent(), 't = 2.50');
+await page.evaluate(() => window.__playSetIndex(4, 20));
+assert.equal(await demoPlayback.locator('.ds-playback-counter').textContent(), '5 / 20');
+
+// 8q — split panes: geometry, keyboard resize, pointer drag
+const hSplit = page.getByTestId('demo-hsplit');
+const hSecond = hSplit.locator('.ds-split-second');
+const hHandle = hSplit.locator('.panel-resizer');
+assert.equal(await hHandle.getAttribute('role'), 'separator');
+const widthBefore = await hSecond.evaluate(node => node.getBoundingClientRect().width);
+await hHandle.focus();
+await hHandle.press('ArrowLeft');
+const widthAfter = await hSecond.evaluate(node => node.getBoundingClientRect().width);
+assert.ok(widthAfter > widthBefore, 'keyboard resize widens the second pane');
+const box = await hHandle.boundingBox();
+await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+await page.mouse.down();
+await page.mouse.move(box.x + box.width / 2 - 40, box.y + box.height / 2, { steps: 4 });
+await page.mouse.up();
+const widthDragged = await hSecond.evaluate(node => node.getBoundingClientRect().width);
+assert.ok(widthDragged > widthAfter, 'pointer drag resizes the split');
+const vSplit = page.getByTestId('demo-vsplit');
+const vHandle = vSplit.locator('.panel-resizer--row');
+assert.equal(await vHandle.getAttribute('aria-orientation'), 'horizontal');
+const vSecond = vSplit.locator('.ds-split-second');
+const heightBefore = await vSecond.evaluate(node => node.getBoundingClientRect().height);
+await vHandle.focus();
+await vHandle.press('ArrowUp');
+const heightAfter = await vSecond.evaluate(node => node.getBoundingClientRect().height);
+assert.ok(heightAfter > heightBefore, 'vertical split keyboard resize');
+
 // 9 — token-driven theming: light parity flips surfaces.
 // Controls animate background/color over 120ms; let transitions settle.
 const darkBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
