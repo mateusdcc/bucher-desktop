@@ -83,6 +83,9 @@
 .ds-tab:hover { color: var(--text-primary); background: none; }
 .ds-tab[aria-selected='true'] { color: var(--accent-primary); border-bottom-color: var(--accent-primary); }
 
+/* Forms built inside modals */
+.ds-form { display: flex; flex-direction: column; gap: var(--space-3); }
+
 /* Modal (native dialog) */
 .ds-modal {
   border: 1px solid var(--border-strong);

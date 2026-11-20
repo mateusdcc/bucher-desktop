@@ -21,6 +21,7 @@ export interface InputProps {
   ariaLabel?: string;
   size?: ButtonSize;
   name?: string;
+  className?: string;
   testId?: string;
   onInput?: (value: string) => void;
   onEnter?: () => void;
@@ -41,9 +42,9 @@ function field(label: string | undefined, control: HTMLElement, extraClass = '')
 export function Input(props: InputProps): InputHandle {
   const {
     label, value = '', placeholder, type = 'text', mono = false, required = false,
-    maxLength, disabled = false, ariaLabel, size = 'md', name, testId, onInput, onEnter,
+    maxLength, disabled = false, ariaLabel, size = 'md', name, className = '', testId, onInput, onEnter,
   } = props;
-  const input = el('input', `${ds.input} ${mono ? ds.inputMono : ''} ${ds.input}--${size}`.replace(/\s+/g, ' ').trim());
+  const input = el('input', `${ds.input} ${mono ? ds.inputMono : ''} ${ds.input}--${size} ${className}`.replace(/\s+/g, ' ').trim());
   input.type = type;
   input.value = value;
   if (placeholder) input.placeholder = placeholder;

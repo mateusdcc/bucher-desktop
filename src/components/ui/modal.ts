@@ -14,6 +14,7 @@ export interface ModalProps {
   /** sm 420 · md 560 (default) · lg 850 · source 760. */
   size?: 'sm' | 'md' | 'lg' | 'source';
   onClose?: () => void;
+  className?: string;
   testId?: string;
 }
 
@@ -25,8 +26,8 @@ export interface ModalHandle {
 }
 
 export function Modal(props: ModalProps): ModalHandle {
-  const { title, size = 'md', onClose, testId } = props;
-  const dialog = el('dialog', `${ds.modal} ${ds.modal}--${size}`);
+  const { title, size = 'md', onClose, className = '', testId } = props;
+  const dialog = el('dialog', `${ds.modal} ${ds.modal}--${size} ${className}`.replace(/\s+/g, ' ').trim());
   if (testId) dialog.dataset.testid = testId;
   const titleId = 'ds-modal-' + crypto.randomUUID();
   const heading = el('h2', ds.modalTitle, title);

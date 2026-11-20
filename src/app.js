@@ -32,7 +32,12 @@ import { showChapter, showExercises, showNote, showOutline, showOverview, status
 import { panelResize } from './panel-resize';
 import { settingsPage } from './settings';
 import { capture, showCards, showNotes } from './study';
-import { button, dialog, editor, el, formDialog, icon, iconButton, notice, report } from './ui';
+import { editor, el, icon, notice, report } from './ui';
+import {
+  Button, IconButton, Input, Modal, CalloutBanner, setErrorHandler,
+} from './components/ui/index.ts';
+
+setErrorHandler(error => notice(error?.message || String(error), true));
 
 const { listBuches } = catalog;
 const { flattenConcepts } = bookModel;
@@ -74,7 +79,7 @@ const readingLayout = el('main', 'reading-layout', scroll, readerSide);
 const referenceScroll = el('div', 'reference-scroll');
 referenceScroll.tabIndex = 0;
 referenceScroll.setAttribute('aria-label', 'Reference text');
-const closeReferenceButton = iconButton('Close reference pane', 'x', closeReference);
+const closeReferenceButton = IconButton({ icon: 'x', label: 'Close reference pane', size: 'sm', onClick: closeReference });
 const referenceTitle = el('h2', 'eyebrow reference-title');
 const referencePane = el('aside', 'reference-pane', el('header', 'reference-header',
   referenceTitle, closeReferenceButton), referenceScroll);
@@ -224,7 +229,7 @@ function renderJump() {
   readingLayout.style.setProperty('--jump-border', origin ? jumpStack.map((_, index) =>
     `inset -${8 * (index + 1)}px 0 hsl(${(181 + index * 67) % 360} 55% 61%)`).join(', ') : 'none');
   if (!origin) return;
-  const back = button('Go back', 'undo-2', goBack);
+  const back = Button({ label: 'Go back', leftIcon: 'undo-2', size: 'sm', onClick: goBack });
   jumpBar.replaceChildren(back, el('span', 'jump-origin', pageName(origin.route.path)),
     el('span', 'jump-depth', `${jumpStack.length} ${jumpStack.length === 1 ? 'jump' : 'jumps'}`));
 }
@@ -330,7 +335,8 @@ async function openFile(path, fragment = '') {
   if (!entry.model.byPath.has(path) && path !== entry.book.index.path) {
     const file = library.file(path);
     if (file?.extension === 'md') {
-      dialog(file.frontmatter.name || file.name.replace(/\.md$/i, ''), panel => panel.append(markdown(stripFrontmatter(file.source), path)));
+      const modal = Modal({ title: file.frontmatter.name || file.name.replace(/\.md$/i, ''), size: 'md' });
+      modal.body.append(markdown(stripFrontmatter(file.source), path));
     }
     return;
   }
@@ -376,9 +382,35 @@ function editBookNote(book, name, title) {
   });
 }
 
+/** Shared create-name dialog (books and chapters) built on design-system primitives. */
+function createDialog(title, fieldLabel, submitLabel, save) {
+  const modal = Modal({ title, size: 'sm' });
+  const field = Input({ label: fieldLabel, required: true, maxLength: 120 });
+  const form = el('form', 'ds-form');
+  const submit = Button({ label: submitLabel, variant: 'primary', type: 'submit' });
+  form.append(field.root, el('div', 'ds-modal-actions',
+    Button({ label: 'Cancel', onClick: () => modal.close() }), submit));
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const name = field.input.value.trim();
+    if (!name) return field.input.reportValidity();
+    submit.disabled = true;
+    try {
+      await save(name);
+      modal.close();
+    } catch (error) {
+      report(error);
+    } finally {
+      submit.disabled = false;
+    }
+  });
+  modal.body.append(form);
+  field.input.focus();
+}
+
 function addBook() {
-  formDialog('New book', [{ name: 'name', label: 'Book title', required: true }], 'Create book', async ({ name }) => {
-    const note = await storage.createBuch(library.app.vault, name.trim());
+  createDialog('New book', 'Book title', 'Create book', async name => {
+    const note = await storage.createBuch(library.app.vault, name);
     await refresh(false);
     await openFile(note.path);
     editFile(note, 'Edit book introduction');
@@ -386,11 +418,11 @@ function addBook() {
 }
 
 function addChapter(book, parent) {
-  formDialog(parent ? 'New subchapter' : 'New chapter', [{ name: 'name', label: 'Chapter title', required: true }], 'Create chapter', async ({ name }) => {
+  createDialog(parent ? 'New subchapter' : 'New chapter', 'Chapter title', 'Create chapter', async name => {
     const { vault, metadataCache } = library.app;
     const note = parent
-      ? await storage.createSubconcept(vault, parent.file.path, name.trim(), metadataCache)
-      : await storage.createConcept(vault, book.path, name.trim(), metadataCache);
+      ? await storage.createSubconcept(vault, parent.file.path, name, metadataCache)
+      : await storage.createConcept(vault, book.path, name, metadataCache);
     await refresh(false);
     await openFile(note.path);
     editFile(note, 'Edit chapter');
@@ -449,21 +481,27 @@ function renderNav() {
     line.classList.toggle('active', current);
     let chevron;
     if (children) {
-      chevron = iconButton(`${open ? 'Collapse' : 'Expand'} ${name}`, open ? 'chevron-down' : 'chevron-right', () => {
-        toggle();
-        renderNav();
-        const replacement = [...nav.querySelectorAll('.tree-row')].find(item => item.dataset.path === path);
-        replacement?.querySelector('.tree-chevron')?.focus({ preventScroll: true });
+      chevron = IconButton({
+        icon: open ? 'chevron-down' : 'chevron-right',
+        label: `${open ? 'Collapse' : 'Expand'} ${name}`,
+        size: 'sm',
+        className: 'tree-chevron',
+        onClick: () => {
+          toggle();
+          renderNav();
+          const replacement = [...nav.querySelectorAll('.tree-row')].find(item => item.dataset.path === path);
+          replacement?.querySelector('.tree-chevron')?.focus({ preventScroll: true });
+        },
       });
-      chevron.classList.add('tree-chevron');
       chevron.setAttribute('aria-expanded', String(open));
     }
-    const link = button('', null, () => openFile(path), 'tree-link');
+    const link = Button({ className: 'tree-link', ariaLabel: name, onClick: () => openFile(path) });
     link.append(icon(glyph, true), el('span', 'tree-name', name));
     link.title = name;
     if (current) link.setAttribute('aria-current', 'page');
-    const options = el('div', 'tree-options', status, sheet ? iconButton(`Exercises for ${name}`, 'clipboard-list', sheet) : null,
-      iconButton(depth ? `Add subchapter to ${name}` : `Add chapter to ${name}`, 'plus', add));
+    const options = el('div', 'tree-options', status,
+      sheet ? IconButton({ icon: 'clipboard-list', label: `Exercises for ${name}`, size: 'xs', onClick: sheet }) : null,
+      IconButton({ icon: 'plus', label: depth ? `Add subchapter to ${name}` : `Add chapter to ${name}`, size: 'xs', onClick: add }));
     line.dataset.path = path;
     line.append(chevron ?? el('span', 'tree-indent'), link, options);
     nav.append(line);
@@ -507,42 +545,47 @@ function searchLibrary() {
     const entries = memory.bookRecords(model, progress, stripFrontmatter(book.index.source) || book.title);
     for (const [key, record] of entries) records.set(key, { ...record, book: book.title });
   }
-  searchPanel = dialog('Search library', panel => {
-    const search = el('input', 'search-input');
-    search.type = 'search';
-    search.placeholder = 'Search books, chapters, and exercises';
-    search.setAttribute('aria-label', 'Search books, chapters, and exercises');
-    search.autofocus = true;
-    const list = el('div', 'search-results');
-    function showResults() {
-      const query = search.value.trim();
-      const results = query ? memory.searchRecords(records, query).slice(0, 12).map(match => records.get(match.id))
-        : [...records.values()].filter(record => record.kind === 'index');
-      list.replaceChildren(...results.map(record => {
-        const result = button('', null, () => {
-          panel.close();
+  const modal = Modal({ title: 'Search library', size: 'md' });
+  searchPanel = modal.dialog;
+  const search = Input({
+    type: 'search', placeholder: 'Search books, chapters, and exercises',
+    ariaLabel: 'Search books, chapters, and exercises', className: 'search-input',
+  });
+  const input = search.input;
+  const list = el('div', 'search-results');
+  function showResults() {
+    const query = input.value.trim();
+    const results = query ? memory.searchRecords(records, query).slice(0, 12).map(match => records.get(match.id))
+      : [...records.values()].filter(record => record.kind === 'index');
+    list.replaceChildren(...results.map(record => {
+      const result = Button({
+        className: 'search-result',
+        ariaLabel: record.title,
+        onClick: () => {
+          modal.close();
           const [path, fragment] = record.id.split(/#(.*)/s);
           return openFile(path, fragment || '');
-        }, 'search-result');
-        result.append(icon(record.kind === 'index' ? 'book-open' : 'file-text'), el('span', '',
-          el('span', 'result-title', record.title),
-          el('span', 'result-context', record.kind === 'index' ? 'Book' : [record.book, record.chapter].filter(Boolean).join(' / '))));
-        return result;
-      }));
-      if (!results.length) list.append(el('p', 'muted', query ? 'No matching passages.' : 'Your library is empty.'));
-    }
-    search.addEventListener('input', showResults);
-    search.addEventListener('keydown', event => {
-      if (event.key === 'Enter') list.querySelector('button')?.click();
-      if (event.key === 'ArrowDown') list.querySelector('button')?.focus();
-    });
-    list.addEventListener('keydown', event => {
-      if (event.key === 'ArrowDown') document.activeElement.nextElementSibling?.focus();
-      if (event.key === 'ArrowUp') (document.activeElement.previousElementSibling ?? search).focus();
-    });
-    panel.append(search, list);
-    showResults();
+        },
+      });
+      result.append(icon(record.kind === 'index' ? 'book-open' : 'file-text'), el('span', '',
+        el('span', 'result-title', record.title),
+        el('span', 'result-context', record.kind === 'index' ? 'Book' : [record.book, record.chapter].filter(Boolean).join(' / '))));
+      return result;
+    }));
+    if (!results.length) list.append(el('p', 'muted', query ? 'No matching passages.' : 'Your library is empty.'));
+  }
+  input.addEventListener('input', showResults);
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter') list.querySelector('button')?.click();
+    if (event.key === 'ArrowDown') list.querySelector('button')?.focus();
   });
+  list.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown') document.activeElement.nextElementSibling?.focus();
+    if (event.key === 'ArrowUp') (document.activeElement.previousElementSibling ?? input).focus();
+  });
+  modal.body.append(search.root, list);
+  showResults();
+  input.focus();
 }
 
 function openCommandPalette() {
@@ -577,14 +620,13 @@ async function render(keepScroll = false) {
   renderJump();
   renderLayout();
   const entry = findBook(route.path);
-  const sideToggle = iconButton('Toggle library', 'panel-left', () => shell.classList.toggle('nav-open'));
-  sideToggle.classList.add('mobile-nav');
-  const palette = iconButton('Command palette', 'command', openCommandPalette);
+  const sideToggle = IconButton({ icon: 'panel-left', label: 'Toggle library', className: 'mobile-nav', onClick: () => shell.classList.toggle('nav-open') });
+  const palette = IconButton({ icon: 'command', label: 'Command palette', onClick: openCommandPalette });
   palette.title += ` (${modifier} P)`;
   palette.setAttribute('aria-keyshortcuts', 'Meta+P Control+P');
   if (utility) {
     toolbar.replaceChildren(el('div', 'breadcrumb', sideToggle,
-      button('Back to reader', 'arrow-left', closeWorkspace)), palette);
+      Button({ label: 'Back to reader', leftIcon: 'arrow-left', onClick: closeWorkspace })), palette);
     article.replaceChildren(utility);
     outline.replaceChildren();
     scroll.scrollTop = scrollTop;
@@ -593,7 +635,9 @@ async function render(keepScroll = false) {
   if (!entry) {
     toolbar.replaceChildren(sideToggle, palette);
     article.replaceChildren(el('h1', 'page-title', 'Your library'),
-      el('div', 'page-actions', button('Import books', 'folder-open', importBooks, 'accent-button'), button('New book', 'plus', addBook)));
+      el('div', 'page-actions',
+        Button({ label: 'Import books', leftIcon: 'folder-open', variant: 'primary', onClick: importBooks }),
+        Button({ label: 'New book', leftIcon: 'plus', variant: 'secondary', onClick: addBook })));
     outline.replaceChildren();
     return;
   }
@@ -604,31 +648,27 @@ async function render(keepScroll = false) {
   const modeTitle = { exercises: 'Exercises', notes: 'Quick notes', cards: 'Flashcards' }[route.mode];
   const crumb = el('div', 'breadcrumb',
     sideToggle,
-    button(book.title, 'book-open', () => openFile(book.index.path), 'crumb-book'),
+    Button({ label: book.title, leftIcon: 'book-open', className: 'crumb-book', onClick: () => openFile(book.index.path) }),
     pageTitle || modeTitle ? icon('chevron-right') : null,
     pageTitle || modeTitle ? el('span', 'crumb-page', modeTitle || pageTitle) : null);
   const tools = el('div', 'toolbar-actions');
   const explanation = el('div', 'explanation-anchor');
   for (const [glyph, label, mode] of [['clipboard-list', 'Exercises', 'exercises'], ['layers', 'Flashcards', 'cards'], ['notebook-pen', 'Quick notes', 'notes']]) {
-    const control = iconButton(label, glyph, () => openMode(mode));
-    control.setAttribute('aria-pressed', String(route.mode === mode));
-    tools.append(control);
+    tools.append(IconButton({ icon: glyph, label, pressed: route.mode === mode, onClick: () => openMode(mode) }));
   }
   if (route.mode === 'read') {
     const scope = `${book.title} · ${pageTitle || 'Introduction'}`;
     tools.append(
-      iconButton('Explain with AI', 'message-circle-question-mark', () => ai.explain(explanation, stripFrontmatter(file.source), file.path, scope)),
-      iconButton('Propose a patch', 'wand-sparkles', () => ai.proposePatch(file, scope)));
+      IconButton({ icon: 'message-circle-question-mark', label: 'Explain with AI', onClick: () => ai.explain(explanation, stripFrontmatter(file.source), file.path, scope) }),
+      IconButton({ icon: 'wand-sparkles', label: 'Propose a patch', onClick: () => ai.proposePatch(file, scope) }));
     if (chapter) {
       if (/==[^=\n]+==/.test(file.source)) {
-        const toggle = iconButton('Cloze quiz', 'brain', () => { quiz = !quiz; return render(true); });
-        toggle.setAttribute('aria-pressed', String(quiz));
-        tools.append(toggle);
+        tools.append(IconButton({ icon: 'brain', label: 'Cloze quiz', pressed: quiz, onClick: () => { quiz = !quiz; return render(true); } }));
       }
-      tools.append(iconButton('Quick capture', 'plus', () => capture(library, book, chapter, window.getSelection()?.toString() ?? '', refresh)));
+      tools.append(IconButton({ icon: 'plus', label: 'Quick capture', onClick: () => capture(library, book, chapter, window.getSelection()?.toString() ?? '', refresh) }));
     }
-    tools.append(iconButton('Edit Markdown', 'pencil', () => editFile(file,
-      chapter ? 'Edit chapter' : pageTitle ? `Edit ${pageTitle}` : 'Edit book introduction')));
+    tools.append(IconButton({ icon: 'pencil', label: 'Edit Markdown', onClick: () => editFile(file,
+      chapter ? 'Edit chapter' : pageTitle ? `Edit ${pageTitle}` : 'Edit book introduction') }));
   }
   tools.append(palette);
   const ctx = {
@@ -653,16 +693,17 @@ async function render(keepScroll = false) {
 }
 
 function setup() {
-  const search = button('', null, searchLibrary, 'library-search');
+  const search = Button({ className: 'library-search', ariaLabel: 'Search library', onClick: searchLibrary });
   search.append(icon('search'), el('span', '', 'Search library'), el('kbd', '', `${modifier} K`));
   const sidebar = el('aside', 'sidebar',
     el('div', 'sidebar-brand', icon('book-open'), el('span', '', 'Bücher')),
     search,
-    el('div', 'library-heading', el('h2', 'eyebrow', 'Library'), iconButton('New book', 'plus', addBook),
-      iconButton('Import books', 'folder-down', importBooks),
-      iconButton('Import with AI', 'sparkles', ai.importBook)),
+    el('div', 'library-heading', el('h2', 'eyebrow', 'Library'),
+      IconButton({ icon: 'plus', label: 'New book', size: 'sm', onClick: addBook }),
+      IconButton({ icon: 'folder-down', label: 'Import books', size: 'sm', onClick: importBooks }),
+      IconButton({ icon: 'sparkles', label: 'Import with AI', size: 'sm', onClick: ai.importBook })),
     nav,
-    button('Settings', 'settings', () => openSettings(), 'sidebar-settings'));
+    Button({ label: 'Settings', leftIcon: 'settings', className: 'sidebar-settings', onClick: () => openSettings() }));
   sidebar.id = 'library-sidebar';
   panelResize(shell, sidebar, { name: 'Resize library', property: 'library-width', width: 288,
     min: 215, max: 440, fraction: .37, edge: 'right' });
@@ -714,6 +755,7 @@ registry.subscribe(() => render(true));
 auditCapabilities(registry).then(() => registry.notify()).catch(report);
 article.append(el('p', 'muted', 'Opening library…'));
 load().catch(error => {
-  article.replaceChildren(el('h1', 'page-title', 'Could not open the library'), el('p', 'muted', error?.message || String(error)),
-    button('Try again', 'refresh-cw', load));
+  article.replaceChildren(el('h1', 'page-title', 'Could not open the library'),
+    CalloutBanner({ tone: 'danger', title: 'Library unavailable', children: [error?.message || String(error)] }),
+    el('div', 'page-actions', Button({ label: 'Try again', leftIcon: 'refresh-cw', variant: 'primary', onClick: load })));
 });
