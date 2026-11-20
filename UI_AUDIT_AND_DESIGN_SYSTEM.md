@@ -244,8 +244,8 @@ new tokens during migration and are deleted in Commit 13.
 --text-faint:    /* dark #8b8e85 · light #8a8a82   */
 
 /* Accent & status */
---accent-primary:      /* dark #73d695 · light #1f9d55 */
---accent-primary-hover:/* dark #a1f0b7 · light #178a49 */
+--accent-primary:      /* dark #73d695 · light #106b3d */
+--accent-primary-hover:/* dark #a1f0b7 · light #0d5c34 */
 --accent-surface:      /* dark #202a23 · light #e3f4e9 */
 --accent-surface-hover:/* dark #27372c · light #d3ecdc */
 --status-success:      /* = accent-primary */

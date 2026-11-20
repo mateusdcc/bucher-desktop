@@ -17,5 +17,5 @@
     "forceConsistentCasingInFileNames": true,
     "types": []
   },
-  "include": ["src/extensions/**/*.js", "src/extensions/**/*.tsx", "src/extensions/**/*.d.ts"]
+  "include": ["src/extensions/**/*.js", "src/extensions/**/*.tsx", "src/extensions/**/*.d.ts", "src/components/**/*.ts", "src/components/**/*.tsx"]
 }

@@ -1,0 +1,141 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Design system — interactive controls (Button, IconButton, ToggleSwitch,
+   SegmentedControl). Token-driven; no feature file may re-style these.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Buttons */
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-weight: var(--weight-medium);
+  line-height: 1.3;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: center;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.ds-btn--md { padding: 7px 12px; min-height: 32px; font-size: var(--text-base); }
+.ds-btn--sm { padding: 5px 10px; min-height: 28px; font-size: var(--text-sm); }
+.ds-btn--xs { padding: 3px 8px; min-height: 24px; font-size: var(--text-xs); }
+.ds-btn svg { width: 15px; height: 15px; flex: 0 0 15px; color: inherit; }
+.ds-btn--sm svg { width: 14px; height: 14px; flex-basis: 14px; }
+.ds-btn--xs svg { width: 13px; height: 13px; flex-basis: 13px; }
+
+.ds-btn--primary { background: var(--accent-surface); color: var(--accent-primary); font-weight: var(--weight-semibold); }
+.ds-btn--primary:hover { background: var(--accent-surface-hover); color: var(--accent-primary-hover); }
+.ds-btn--secondary { background: var(--bg-interactive); border-color: var(--border-subtle); color: var(--text-primary); }
+.ds-btn--secondary:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+.ds-btn--ghost { background: transparent; color: var(--text-secondary); }
+.ds-btn--ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ds-btn--danger { background: var(--status-danger-surface); border-color: var(--status-danger-border); color: var(--status-danger); }
+.ds-btn--danger:hover { background: var(--status-danger-border); color: var(--text-primary); }
+.ds-btn--success { background: var(--status-success-surface); border-color: var(--status-success-border); color: var(--status-success); }
+.ds-btn--success:hover { background: var(--status-success-border); color: var(--text-primary); }
+
+.ds-btn:disabled { opacity: .52; cursor: not-allowed; }
+.ds-btn[data-loading='true'] { cursor: wait; }
+.ds-btn[data-loading='true'] svg { opacity: .4; }
+
+/* Spinner (also used standalone by loading states) */
+.ds-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: var(--radius-full);
+  animation: ds-spin .7s linear infinite;
+}
+.ds-spinner--sm { width: 12px; height: 12px; flex-basis: 12px; }
+@keyframes ds-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .ds-spinner { animation-duration: 1.6s; }
+}
+
+/* Icon buttons */
+.ds-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.ds-icon-btn--md { width: 32px; height: 32px; min-height: 32px; }
+.ds-icon-btn--sm { width: 28px; height: 28px; min-height: 28px; }
+.ds-icon-btn--xs { width: 24px; height: 24px; min-height: 24px; }
+.ds-icon-btn svg { width: 16px; height: 16px; flex: 0 0 16px; color: inherit; }
+.ds-icon-btn--sm svg { width: 15px; height: 15px; flex-basis: 15px; }
+.ds-icon-btn--xs svg { width: 14px; height: 14px; flex-basis: 14px; }
+.ds-icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ds-icon-btn[aria-pressed='true'] { background: var(--bg-selected); color: var(--text-primary); }
+.ds-icon-btn:disabled { opacity: .52; cursor: not-allowed; }
+
+/* Toggle switch */
+.ds-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--bg-interactive);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.ds-switch:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+.ds-switch[aria-checked='true'] { background: var(--status-success-border); border-color: var(--status-success-border); }
+.ds-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: var(--text-muted);
+  transition: transform .15s, background .15s;
+}
+.ds-switch[aria-checked='true'] .ds-switch-knob { transform: translateX(18px); background: var(--accent-primary); }
+.ds-switch:disabled { opacity: .52; cursor: not-allowed; }
+
+/* Segmented control */
+.ds-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+.ds-segmented-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  min-height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, color .12s;
+}
+.ds-segmented--sm .ds-segmented-item { padding: 3px 9px; min-height: 24px; font-size: var(--text-xs); }
+.ds-segmented-item svg { width: 14px; height: 14px; flex: 0 0 14px; color: inherit; }
+.ds-segmented-item:hover { color: var(--text-primary); background: var(--bg-hover); }
+.ds-segmented-item[aria-pressed='true'] { background: var(--accent-surface); color: var(--accent-primary); }
