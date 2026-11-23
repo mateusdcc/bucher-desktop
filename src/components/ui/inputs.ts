@@ -81,9 +81,9 @@ export interface TextareaHandle {
 export function Textarea(props: TextareaProps): TextareaHandle {
   const {
     label, value = '', placeholder, mono = false, required = false, maxLength,
-    disabled = false, ariaLabel, name, testId, onInput, rows = 3, autoGrow = false, source = false,
+    disabled = false, ariaLabel, name, className = '', testId, onInput, rows = 3, autoGrow = false, source = false,
   } = props;
-  const textarea = el('textarea', `${ds.textarea} ${mono || source ? ds.inputMono : ''}`.replace(/\s+/g, ' ').trim());
+  const textarea = el('textarea', `${ds.textarea} ${mono || source ? ds.inputMono : ''} ${className}`.replace(/\s+/g, ' ').trim());
   textarea.value = value;
   textarea.rows = rows;
   if (placeholder) textarea.placeholder = placeholder;
@@ -120,6 +120,7 @@ export interface SelectProps<T extends string> {
   disabled?: boolean;
   size?: ButtonSize;
   name?: string;
+  className?: string;
   testId?: string;
 }
 
@@ -130,8 +131,8 @@ export interface SelectHandle<T extends string> {
 }
 
 export function Select<T extends string>(props: SelectProps<T>): SelectHandle<T> {
-  const { label, value, options, onChange, ariaLabel, disabled = false, size = 'md', name, testId } = props;
-  const select = el('select', `${ds.select} ${ds.select}--${size}`);
+  const { label, value, options, onChange, ariaLabel, disabled = false, size = 'md', name, className = '', testId } = props;
+  const select = el('select', `${ds.select} ${ds.select}--${size} ${className}`.replace(/\s+/g, ' ').trim());
   if (ariaLabel) select.setAttribute('aria-label', ariaLabel);
   if (name) select.name = name;
   if (testId) select.dataset.testid = testId;

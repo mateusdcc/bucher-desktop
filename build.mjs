@@ -24,6 +24,10 @@ await mkdir('dist/duckdb', { recursive: true });
 for (const asset of duckdbAssets) {
   await copyFile(`node_modules/@duckdb/duckdb-wasm/dist/${asset}`, `dist/duckdb/${asset}`);
 }
+// PDF.js worker is self-hosted (same-origin 'self') so entire PDF books can be
+// parsed locally with zero network requests and full CSP compliance.
+await mkdir('dist/pdf', { recursive: true });
+await copyFile('node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs', 'dist/pdf/pdf.worker.min.mjs');
 const options = {
   entryPoints: ['src/app.js'],
   bundle: true,

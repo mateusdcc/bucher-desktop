@@ -133,14 +133,34 @@ pub struct BookDraft {
 
 #[derive(Deserialize, Serialize)]
 pub struct BookContent {
-    introduction: String,
-    chapters: Vec<ChapterDraft>,
+    pub introduction: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub extensions: Vec<String>,
+    pub chapters: Vec<ChapterDraft>,
+    #[serde(default)]
+    pub cards: Vec<CardDraft>,
 }
 
 #[derive(Deserialize, Serialize)]
-struct ChapterDraft {
-    title: String,
-    markdown: String,
+pub struct ChapterDraft {
+    pub title: String,
+    pub markdown: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct CardDraft {
+    pub front: String,
+    pub back: String,
+    #[serde(default)]
+    pub chapter: Option<String>,
 }
 
 fn invalid(message: impl Into<String>) -> io::Error {
@@ -386,6 +406,75 @@ pub fn validate_draft(draft: &BookDraft) -> io::Result<()> {
     Ok(())
 }
 
+fn yaml_string(value: &str) -> String {
+    serde_json::json!(value).to_string()
+}
+
+fn resolve_chapter_depends(
+    book_title: &str,
+    current_index: usize,
+    raw_depends: &[String],
+    chapters: &[ChapterDraft],
+) -> Vec<String> {
+    let mut resolved = Vec::new();
+    for dep in raw_depends {
+        let needle = dep.trim();
+        if needle.is_empty() {
+            continue;
+        }
+        let target_order = needle
+            .strip_prefix("chapter-")
+            .and_then(|num| num.parse::<usize>().ok())
+            .filter(|&order| order >= 1 && order <= current_index)
+            .or_else(|| {
+                chapters[..current_index]
+                    .iter()
+                    .position(|chapter| chapter.title.trim().eq_ignore_ascii_case(needle))
+                    .map(|idx| idx + 1)
+            });
+        if let Some(order) = target_order {
+            let link = format!("[[Buches/{book_title}/concepts/chapter-{order}]]");
+            if !resolved.contains(&link) {
+                resolved.push(link);
+            }
+        }
+    }
+    resolved
+}
+
+fn render_cards_markdown(cards: &[CardDraft]) -> Option<String> {
+    let valid: Vec<&CardDraft> = cards
+        .iter()
+        .filter(|card| !card.front.trim().is_empty() && !card.back.trim().is_empty())
+        .collect();
+    if valid.is_empty() {
+        return None;
+    }
+    let mut out = String::from("---\ntags:\n  - flashcards\n---\n\n# Flashcards\n");
+    let mut current_chapter: Option<&str> = None;
+    for card in valid {
+        let chapter = card
+            .chapter
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or("General");
+        if current_chapter != Some(chapter) {
+            out.push_str(&format!("\n## {chapter}\n\n"));
+            current_chapter = Some(chapter);
+        }
+        let front = card.front.trim();
+        let back = card.back.trim();
+        if front.contains('\n') || back.contains('\n') || front.contains("::") || back.contains("::")
+        {
+            out.push_str(&format!("{front}\n?\n{back}\n\n"));
+        } else {
+            out.push_str(&format!("{front} :: {back}\n\n"));
+        }
+    }
+    Some(out)
+}
+
 /// Stage a complete Markdown book before making it visible in the app library.
 pub fn publish_draft(root: &Path, draft: &BookDraft) -> io::Result<String> {
     validate_draft(draft)?;
@@ -398,22 +487,72 @@ pub fn publish_draft(root: &Path, draft: &BookDraft) -> io::Result<String> {
     let collection = root.join("Buches");
     fs::create_dir_all(&collection)?;
     let staging = tempfile::tempdir_in(&collection)?;
-    let index = format!(
-        "---\ntitle: {}\ntype: buch\n---\n\n{}",
-        serde_json::json!(draft.title),
-        draft.content.introduction
-    );
-    write_draft_note(&staging.path().join("_index.md"), &index)?;
+    let mut index_fm = format!("---\ntitle: {}\ntype: buch\n", yaml_string(&draft.title));
+    if let Some(desc) = draft
+        .content
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+    {
+        index_fm.push_str(&format!("description: {}\n", yaml_string(desc)));
+    }
+    let extensions: Vec<&str> = draft
+        .content
+        .extensions
+        .iter()
+        .map(|id| id.trim())
+        .filter(|id| !id.is_empty())
+        .collect();
+    if !extensions.is_empty() {
+        index_fm.push_str("extensions:\n");
+        for ext in extensions {
+            index_fm.push_str(&format!("  - {}\n", yaml_string(ext)));
+        }
+    }
+    index_fm.push_str(&format!("---\n\n{}", draft.content.introduction));
+    write_draft_note(&staging.path().join("_index.md"), &index_fm)?;
     let concepts = staging.path().join("concepts");
     fs::create_dir(&concepts)?;
     for (index, chapter) in draft.content.chapters.iter().enumerate() {
         let order = index + 1;
-        let text = format!(
-            "---\nname: {}\norder: {order}\ndepends_on: []\n---\n\n{}",
-            serde_json::json!(chapter.title),
-            chapter.markdown
+        let deps = resolve_chapter_depends(
+            &draft.title,
+            index,
+            &chapter.depends_on,
+            &draft.content.chapters,
         );
-        write_draft_note(&concepts.join(format!("chapter-{order}.md")), &text)?;
+        let mut fm = format!("---\nname: {}\n", yaml_string(&chapter.title));
+        if let Some(desc) = chapter
+            .description
+            .as_deref()
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+        {
+            fm.push_str(&format!("description: {}\n", yaml_string(desc)));
+        }
+        if let Some(cat) = chapter
+            .category
+            .as_deref()
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+        {
+            fm.push_str(&format!("category: {}\n", yaml_string(cat)));
+        }
+        fm.push_str(&format!("order: {order}\n"));
+        if deps.is_empty() {
+            fm.push_str("depends_on: []\n");
+        } else {
+            fm.push_str("depends_on:\n");
+            for link in deps {
+                fm.push_str(&format!("  - {}\n", yaml_string(&link)));
+            }
+        }
+        fm.push_str(&format!("---\n\n{}", chapter.markdown));
+        write_draft_note(&concepts.join(format!("chapter-{order}.md")), &fm)?;
+    }
+    if let Some(cards_md) = render_cards_markdown(&draft.content.cards) {
+        write_draft_note(&staging.path().join("_cards.md"), &cards_md)?;
     }
     fs::rename(staging.path(), destination)?;
     Ok(index_key)
@@ -569,16 +708,25 @@ mod tests {
             title: "Draft".into(),
             content: BookContent {
                 introduction: "Introduction".into(),
+                description: None,
+                extensions: Vec::new(),
                 chapters: vec![
                     ChapterDraft {
                         title: "First".into(),
                         markdown: "Proof.".into(),
+                        description: None,
+                        category: None,
+                        depends_on: Vec::new(),
                     },
                     ChapterDraft {
                         title: "Second".into(),
                         markdown: "x".repeat(MAX_NOTE_BYTES as usize),
+                        description: None,
+                        category: None,
+                        depends_on: Vec::new(),
                     },
                 ],
+                cards: Vec::new(),
             },
         };
         assert!(publish_draft(root.path(), &draft).is_err());
@@ -593,5 +741,65 @@ mod tests {
         assert!(fs::read_to_string(chapter).unwrap().ends_with("Example."));
         draft.title = "../Elsewhere".into();
         assert!(publish_draft(root.path(), &draft).is_err());
+    }
+
+    #[test]
+    fn publishes_enriched_pdf_draft_with_prereqs_extensions_and_cards() {
+        let root = tempfile::tempdir().unwrap();
+        let draft = BookDraft {
+            title: "Stats With Python".into(),
+            content: BookContent {
+                introduction: "Learn statistics interactively.".into(),
+                description: Some("Hands-on statistics with Python.".into()),
+                extensions: vec!["ext-code-lab".into(), "ext-math-plot".into()],
+                chapters: vec![
+                    ChapterDraft {
+                        title: "Descriptive Statistics".into(),
+                        markdown: "# Descriptive Statistics\nMean and variance.".into(),
+                        description: Some("Summary measures.".into()),
+                        category: Some("Foundations".into()),
+                        depends_on: vec!["Inference".into()], // forward ref ignored to prevent cycles
+                    },
+                    ChapterDraft {
+                        title: "Inference".into(),
+                        markdown: "# Inference\nConfidence intervals.".into(),
+                        description: None,
+                        category: None,
+                        depends_on: vec!["Descriptive Statistics".into(), "Nonexistent".into()],
+                    },
+                ],
+                cards: vec![
+                    CardDraft {
+                        front: "Formula for sample variance?".into(),
+                        back: "$s^2 = \\frac{1}{n-1}\\sum (x_i - \\bar{x})^2$".into(),
+                        chapter: Some("Descriptive Statistics".into()),
+                    },
+                ],
+            },
+        };
+        let key = publish_draft(root.path(), &draft).unwrap();
+        assert_eq!(key, "Buches/Stats With Python/_index.md");
+        let index = fs::read_to_string(root.path().join(&key)).unwrap();
+        assert!(index.contains("description: \"Hands-on statistics with Python.\""));
+        assert!(index.contains("ext-code-lab"));
+        let ch1 = fs::read_to_string(
+            root.path()
+                .join("Buches/Stats With Python/concepts/chapter-1.md"),
+        )
+        .unwrap();
+        assert!(ch1.contains("depends_on: []"));
+        let ch2 = fs::read_to_string(
+            root.path()
+                .join("Buches/Stats With Python/concepts/chapter-2.md"),
+        )
+        .unwrap();
+        assert!(ch2.contains("[[Buches/Stats With Python/concepts/chapter-1]]"));
+        let cards = fs::read_to_string(
+            root.path().join("Buches/Stats With Python/_cards.md"),
+        )
+        .unwrap();
+        assert!(cards.contains("tags:\n  - flashcards"));
+        assert!(cards.contains("## Descriptive Statistics"));
+        assert!(cards.contains("Formula for sample variance? :: "));
     }
 }

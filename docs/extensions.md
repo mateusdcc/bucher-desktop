@@ -35,7 +35,7 @@ Rules of thumb:
 | `ext-mermaid` | visualization | Mermaid diagrams (flowchart, sequence, state, class, …) with zoom/pan and theme-synced colors. |
 | `ext-math-plot` | visualization | Canvas plots of functions, parametric curves, and datasets with live parameter sliders and hover readouts. Safe expression parser — no `eval`. |
 | `ext-state-stepper` | visualization | Prev/Next/Auto-Play player over snapshot steps: array cells, pointers, highlights, variables, and node/edge state diagrams. |
-| `ext-code-lab` | exercise | CodeMirror editor + JavaScript unit tests (visible and hidden) run in an isolated worker with a timeout. All tests pass → exercise solved. |
+| `ext-code-lab` | exercise | CodeMirror editor + JavaScript or Python (Pyodide WASM) unit tests (visible and hidden, optional float tolerance) run in an isolated worker with a timeout. All tests pass → exercise solved. |
 | `ext-parsons-puzzle` | exercise | Drag/click scrambled lines into order; optional graded indentation and distractor lines; per-line feedback. |
 | `ext-sql-lab` | exercise | SQL queries against a fresh seeded alasql database per attempt; result table + grading against expected rows (order-insensitive by default). |
 
@@ -56,14 +56,13 @@ Block state (slider values, viewport, step position, code + results, puzzle arra
 
 ## AI authoring
 
-When extensions are enabled, *Import with AI*, *Propose a patch*, *Generate solution*, *Explain*, and *Review attempt* receive the composed skill section (see `docs/local-ai.md`, `skills` argument). The model is told when to use each block, the exact YAML syntax, and concrete examples — so generated books use extensions correctly without extra prompting.
+When extensions are enabled, *Import with AI*, *Propose a patch*, *Generate solution*, *Explain*, and *Review attempt* receive the composed skill section (see `docs/local-ai.md`, `skills` argument). During **Import with AI** (for both Markdown and entire **PDF books**), you can select exactly which extensions to expose for that import and inspect the exact composed skills prompt before generating — so, for example, importing a Python statistics PDF with **Code Lab** selected automatically exposes Code Lab's Python authoring skill.
 
 ## Sandboxing & CSP
 
-- Code Lab executes learner JavaScript in a dedicated same-origin Web Worker (`dist/code-lab-worker.js`). Dangerous globals (`fetch`, `XMLHttpRequest`, `importScripts`, storage, …) are shadowed inside the compiled scope; the worker has no DOM and no Tauri IPC. The main thread terminates the worker after `timeoutMs` (default 5 s).
+- Code Lab executes learner JavaScript in a dedicated same-origin Web Worker (`dist/code-lab-worker.js`) and learner Python in a self-hosted Pyodide WASM module worker (`dist/pyodide-worker.js`). Dangerous globals (`fetch`, `XMLHttpRequest`, `importScripts`, storage, …) are shadowed inside the JS worker; neither worker has DOM or Tauri IPC access. The main thread terminates the worker after `timeoutMs` (default 5 s).
 - SQL Lab runs each attempt on a fresh in-memory alasql database; datasets are author-bounded.
-- To compile learner code inside the worker, the app CSP allows `script-src 'self' 'unsafe-eval'` and `worker-src 'self'`. This is the standard interactive-playground trade-off; the worker isolation above contains it. Everything else (no remote scripts, no inline injection, asset protocol scoped to the library) stays locked down.
-- JavaScript only in Code Lab for now — TypeScript/Pyodide would require bundling a transpiler/wasm runtime and are deliberately out of scope.
+- To compile learner code inside the worker, the app CSP allows `script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'` and `worker-src 'self'`. This is the standard interactive-playground trade-off; the worker isolation above contains it. Everything else (no remote scripts, no inline injection, asset protocol scoped to the library) stays locked down.
 
 ## Developing a new extension
 

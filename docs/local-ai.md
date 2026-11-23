@@ -23,8 +23,10 @@ The reader calls the native Tauri commands below through `invoke` from `@tauri-a
 | `ai_generate_solution` | `model`, `exercise`, optional `context`, `instructions`, and `skills` | Worked solution in Markdown and LaTeX |
 | `ai_review_solution` | `model`, `exercise`, `attempt`, optional `rubric` and `skills` | Markdown feedback and criterion scores when a rubric is supplied |
 | `ai_propose_patch` | `model`, `markdown`, `instructions`, optional `skills` | `{ original, replacement }` |
-| `ai_prepare_import` | `model`, `title`, `markdown`, optional `skills` | `{ title, introduction, chapters: [{ title, markdown }] }` |
-| `ai_import_book` | `draft` from `ai_prepare_import`, with any user edits | Library-relative path to the new book's `_index.md` |
+| `ai_prepare_import` | `model`, `title`, `markdown`, optional `skills` and `instructions` | `{ title, introduction, chapters: [{ title, markdown }] }` |
+| `ai_prepare_chapter` | `model`, `bookTitle`, `chapterTitle`, `chapterIndex`, `totalChapters`, `previousChapters`, `sourceText`, optional `options` and `skills` | `{ title, description, markdown, depends_on, cards }` |
+| `ai_prepare_book_intro` | `model`, `title`, `chapterTitles`, `frontMatter`, optional `instructions` | `{ description, introduction }` |
+| `ai_import_book` | `draft` (supports optional `description`, `extensions`, per-chapter `depends_on`, and `cards` for `_cards.md`) | Library-relative path to the new book's `_index.md` |
 
 All model inputs are strings. Pass `provider: "chatgpt"` with a ChatGPT model slug to generate using plan usage, or omit `provider` to use Ollama. ChatGPT generation commands accept optional `reasoningEffort` values of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max` where the selected model supports them. Pass the relevant book or exercise excerpt as context. For large documents, process sections separately so the chosen model can fit the source and response in its context window.
 
@@ -38,9 +40,15 @@ The authoring commands accept an optional `skills` string that is appended to th
 
 Pass the Markdown body of an introduction, chapter, or selected excerpt to `ai_propose_patch`. Keep its offsets and the full original file in the caller. After reviewing the replacement, splice it into that snapshot and invoke `save_markdown` with the library-relative `path`, the revised `text`, and the full snapshot as `expected`. The existing save command rejects edits if the file changed while the model was running.
 
-### Import Markdown
+### Import Markdown or PDF books
 
-Pass the target book title and Markdown to `ai_prepare_import`. Review the draft against the source and edit the introduction or chapter entries as needed. Call `ai_import_book` to publish the complete book, then call `load_library` to refresh the reader. Import takes Markdown text as input and publishes a flat list of chapters in the returned order. Use the regular folder import for existing Bücher books with attachments and nested chapters.
+Open **Import with AI** from the sidebar (or **Import PDF book with AI** from the command palette). You can import either pasted **Markdown** or an entire **PDF Book**:
+
+- **PDF Book import** parses the PDF locally using self-hosted PDF.js, cleans running headers/footers and hyphenated wraps, detects chapters from the PDF outline (or heading/chunk fallbacks), recommends matching extensions based on the book's content, and converts chapters one by one via `ai_prepare_chapter` and `ai_prepare_book_intro`.
+- **Per-import extension skills**: choose exactly which extensions to expose for a given import (and preview the exact composed skill prompt). Selected extensions expose their authoring instructions, schemas, and examples so matching exercises (for instance Python statistics exercises with `ext-code-lab`) are generated as runnable interactive blocks.
+- **Review & validate**: generated `ext-*` blocks are validated against their Zod schemas before publishing. Call `ai_import_book` to write `_index.md`, ordered chapters with resolved `depends_on` wikilinks, and optional `_cards.md` flashcards.
+
+Run `node scripts/check-pdf-import-ui.mjs` to exercise full PDF book import, per-import skill selection, and live Python Code Lab execution in Chromium.
 
 ### Check the commands with sample responses
 

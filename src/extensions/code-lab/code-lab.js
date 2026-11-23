@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { javascript } from '@codemirror/lang-javascript';
+import { python } from '@codemirror/lang-python';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { Compartment, EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
@@ -46,16 +47,18 @@ import { blockMeta, createValidator } from '../validate.js';
 
 const schema = z.object({
   ...blockMeta,
-  language: z.literal('javascript').default('javascript'),
+  language: z.enum(['javascript', 'python']).default('javascript'),
   description: z.string().max(8000).optional().describe('Markdown problem statement.'),
   starter: z.string().max(20000).default('').describe('Initial editor contents.'),
   timeoutMs: z.number().int().min(500).max(30000).default(5000),
+  tolerance: z.number().positive().max(1).optional().describe('Optional absolute numeric tolerance for floating-point test comparisons (Python).'),
   tests: z.array(z.object({
     name: z.string().min(1).max(120),
-    fn: z.string().regex(/^[A-Za-z_$][A-Za-z0-9_$]*$/, 'fn must be a JavaScript function name.'),
+    fn: z.string().regex(/^[A-Za-z_$][A-Za-z0-9_$]*$/, 'fn must be a valid function identifier.'),
     args: z.array(z.unknown()).default([]),
     expected: z.unknown(),
     hidden: z.boolean().optional(),
+    tolerance: z.number().positive().max(1).optional(),
   })).min(1).max(30),
 });
 
@@ -65,29 +68,62 @@ const schema = z.object({
 export const codeLabExtension = {
   id: 'ext-code-lab',
   name: 'Code Lab',
-  version: '1.0.0',
-  description: 'Write JavaScript in an embedded editor and pass visible and hidden unit tests running in a sandboxed worker.',
+  version: '1.1.0',
+  description: 'Write JavaScript or Python (Pyodide WASM) in an embedded editor and pass visible and hidden unit tests running in a sandboxed worker.',
   category: 'exercise',
   icon: 'code-2',
   skill: {
-    instructions: `Use ext-code-lab for hands-on programming practice: implement a function, fix a bug, or complete an algorithm. Rules:
-- JavaScript only (no TypeScript, no Python). Code runs in a sandboxed worker: no DOM, no network, no imports — pure functions only.
-- The learner's code must define the function(s) named by tests[].fn at top level. Give a starter with the exact signature and a helpful comment.
-- Write 3–8 tests mixing typical cases, edge cases (empty input, duplicates, negatives), and 1–3 hidden:true tests. args and expected are JSON values; expected is compared structurally (deep equality).
+    instructions: `Use ext-code-lab for hands-on programming exercises in JavaScript OR Python: implement a function, compute statistics or numerical algorithms, fix a bug, or verify a method with unit tests. Rules:
+- Set \`language: python\` whenever the book teaches Python (e.g., statistics with Python, data science, numerical methods, Python algorithms). Python runs real Python 3.14 via Pyodide WASM with the standard library (\`math\`, \`statistics\`, \`collections\`, \`itertools\`, \`random\`, etc.). Set \`language: javascript\` (or omit it) for JavaScript exercises.
+- Code runs in a sandboxed worker: no DOM, no network, no external third-party packages — write pure, self-contained functions using the language standard library.
+- The learner's code must define the function(s) named by tests[].fn at top level. Give a starter with the exact function signature, docstring/comment, and an unfinished body (\`pass\` / \`# your code here\`). Never include the full solution in starter.
+- Write 3–8 tests mixing typical cases, edge cases (empty input, duplicates, negatives), and 1–3 \`hidden: true\` tests. args and expected are JSON values (in Python, JSON arrays map to lists, objects to dicts, null to None). For floating-point / statistics answers in Python, set \`tolerance: 0.001\` (or similar) so minor float rounding passes cleanly.
 - Keep each test deterministic and fast; the whole run is killed after timeoutMs (default 5000).
-- The description is Markdown: state the task, the contract, and 1–2 examples. Do not reveal hidden test inputs in the description.
-- Set a stable id and a short title. Place the block in a chapter so passing marks the exercise solved.`,
+- The description is Markdown: state the task, formula/contract, and 1–2 examples. Do not reveal hidden test inputs in the description.
+- Set a stable id and a short title. Place the block in a chapter (or inside a \`> [!exercise]\` callout) so passing marks the exercise solved.`,
     syntaxSpec: `Fence info string: ext-code-lab. YAML fields:
+- language: javascript | python (default: javascript). Always set \`language: python\` for Python exercises!
 - description (Markdown string, optional but recommended): the problem statement.
-- starter (string): initial code, usually the function signature with a TODO comment. Use a | block scalar.
+- starter (string): initial code with the function signature and a TODO comment. Use a | block scalar.
+- tolerance (number, optional): absolute float tolerance for numeric comparisons (e.g. 0.001 for statistics).
 - timeoutMs (int 500–30000, optional, default 5000).
-- tests (required, 1–30): [{ name, fn, args: [JSON values], expected: JSON value, hidden?: true }].
+- tests (required, 1–30): [{ name, fn, args: [JSON values], expected: JSON value, hidden?: true, tolerance?: number }].
 - id / title as usual.`,
     fewShotExamples: [
       {
-        title: 'Binary search',
+        title: 'Python: sample variance (statistics)',
+        yaml: `id: sample-variance-py
+title: Sample variance in Python
+language: python
+tolerance: 0.001
+description: |
+  Implement \`sample_variance(xs)\` returning the unbiased sample variance
+  $$s^2 = \\frac{1}{n - 1} \\sum_{i=1}^{n} (x_i - \\bar{x})^2$$
+  for a list of at least two numbers.
+starter: |
+  def sample_variance(xs):
+      # Compute the unbiased sample variance (ddof=1)
+      pass
+tests:
+  - name: simple integers
+    fn: sample_variance
+    args: [[2, 4, 4, 4, 5, 5, 7, 9]]
+    expected: 4.5714
+  - name: constant series
+    fn: sample_variance
+    args: [[5, 5, 5, 5]]
+    expected: 0.0
+  - name: negative values
+    fn: sample_variance
+    args: [[-3, -1, 1, 3]]
+    expected: 6.6667
+    hidden: true`,
+      },
+      {
+        title: 'JavaScript: binary search',
         yaml: `id: binary-search
 title: Implement binary search
+language: javascript
 description: |
   Implement \`binarySearch(a, target)\` for a sorted array of numbers.
   Return the index of \`target\`, or \`-1\` when it is absent. Aim for O(log n).
@@ -112,37 +148,6 @@ tests:
     fn: binarySearch
     args: [[], 1]
     expected: -1
-    hidden: true
-  - name: single element hit
-    fn: binarySearch
-    args: [[42], 42]
-    expected: 0
-    hidden: true`,
-      },
-      {
-        title: 'Two sum',
-        yaml: `id: two-sum
-title: Two sum indices
-description: |
-  Return the indices \`[i, j]\` (i < j) of the two numbers adding up to \`target\`.
-  Exactly one solution exists; do not reuse an element.
-starter: |
-  function twoSum(nums, target) {
-    // your code here
-  }
-tests:
-  - name: basic pair
-    fn: twoSum
-    args: [[2, 7, 11, 15], 9]
-    expected: [0, 1]
-  - name: non-adjacent pair
-    fn: twoSum
-    args: [[3, 2, 4], 6]
-    expected: [1, 2]
-  - name: negatives
-    fn: twoSum
-    args: [[-1, -2, -3, -4, -5], -8]
-    expected: [2, 4]
     hidden: true`,
       },
     ],
@@ -153,8 +158,10 @@ tests:
       { name: '@codemirror/state', version: '^6.7.6', purpose: 'Editor state and compartments.' },
       { name: '@codemirror/view', version: '^6.43.15', purpose: 'CodeMirror 6 editor surface.' },
       { name: '@codemirror/lang-javascript', version: '^6.2.5', purpose: 'JavaScript syntax highlighting.' },
+      { name: '@codemirror/lang-python', version: '^6.2.1', purpose: 'Python syntax highlighting.' },
       { name: '@codemirror/language', version: '^6.13.1', purpose: 'Highlight style infrastructure.' },
       { name: '@lezer/highlight', version: '^1.2.5', purpose: 'Syntax highlight tags.' },
+      { name: 'pyodide', version: '^314.0.8', purpose: 'Self-hosted Python 3.14 WASM runtime for Python exercises.', lazyLoad: true },
     ],
   },
   schema,
@@ -201,9 +208,11 @@ function mountCodeLab(host, props) {
   let logs = Array.isArray(saved.logs) ? /** @type {{ level: string, text: string }[]} */ (saved.logs) : [];
   /** @type {Worker | null} */
   let worker = null;
+  let pyodideReady = false;
   /** @type {ReturnType<typeof setTimeout> | null} */
   let timeout = null;
   let running = false;
+  const isPython = data.language === 'python';
 
   const summary = el('p', 'codelab-summary muted');
   const resultsList = el('div', 'codelab-results');
@@ -221,7 +230,8 @@ function mountCodeLab(host, props) {
     renderResults();
     persist();
   });
-  const controls = el('div', 'codelab-controls', run, reset, summary);
+  const langChip = el('span', 'codelab-lang-chip', isPython ? 'Python' : 'JavaScript');
+  const controls = el('div', 'codelab-controls', run, reset, langChip, summary);
   const root = el('div', 'codelab-extension',
     data.description ? el('div', 'codelab-description', props.renderMarkdown(data.description)) : null,
     editorHost, controls, resultsList, consoleDetails);
@@ -236,7 +246,7 @@ function mountCodeLab(host, props) {
         { key: 'Mod-Enter', run: () => { runTests(); return true; } },
         ...defaultKeymap, ...historyKeymap,
       ]),
-      history(), javascript(), EDITOR_THEME, syntaxHighlighting(HIGHLIGHT),
+      history(), isPython ? python() : javascript(), EDITOR_THEME, syntaxHighlighting(HIGHLIGHT),
       EditorView.lineWrapping,
       readOnly.of(EditorState.readOnly.of(props.readOnly)),
       EditorView.contentAttributes.of({ 'aria-label': 'Solution code', spellcheck: 'false' }),
@@ -285,11 +295,14 @@ function mountCodeLab(host, props) {
     consoleDetails.hidden = !logs.length;
   }
 
-  function finishRun() {
+  function finishRun(terminateWorker = true) {
     running = false;
     run.disabled = false;
-    worker?.terminate();
-    worker = null;
+    if (terminateWorker) {
+      worker?.terminate();
+      worker = null;
+      pyodideReady = false;
+    }
     if (timeout !== null) {
       clearTimeout(timeout);
       timeout = null;
@@ -300,35 +313,43 @@ function mountCodeLab(host, props) {
     if (running) return;
     running = true;
     run.disabled = true;
-    summary.textContent = 'Running tests in the sandbox…';
+    summary.textContent = isPython && !pyodideReady
+      ? 'Booting Python WASM sandbox…'
+      : 'Running tests in the sandbox…';
     resultsList.replaceChildren();
     const currentCode = view.state.doc.toString();
     code = currentCode;
     try {
-      worker = new Worker('/code-lab-worker.js');
+      if (!worker) {
+        worker = isPython
+          ? new Worker('/pyodide-worker.js', { type: 'module' })
+          : new Worker('/code-lab-worker.js');
+      }
     } catch (error) {
-      finishRun();
+      finishRun(true);
       results = [{ name: 'Sandbox', pass: false, hidden: false, error: error instanceof Error ? error.message : String(error), durationMs: 0 }];
       renderResults();
       persist();
       return;
     }
     const fail = (/** @type {string} */ message) => {
-      finishRun();
+      finishRun(true);
       results = [{ name: 'Sandbox', pass: false, hidden: false, error: message, durationMs: data.timeoutMs }];
       status = 'in-progress';
       renderResults();
       persist();
     };
+    const budget = data.timeoutMs + (isPython && !pyodideReady ? 30000 : 0);
     timeout = setTimeout(() => {
       fail(`Execution timed out after ${data.timeoutMs} ms — the worker was terminated. Check for infinite loops.`);
-    }, data.timeoutMs);
+    }, budget);
     worker.onerror = event => fail(event.message || 'The sandbox worker failed to load.');
     worker.onmessage = event => {
       const message = /** @type {{ type: string, results?: LabResult[], logs?: { level: string, text: string }[], error?: string }} */ (event.data);
       logs = message.logs ?? [];
+      if (isPython) pyodideReady = true;
       if (message.type === 'fatal') {
-        finishRun();
+        finishRun(!isPython);
         results = [{ name: 'Compile', pass: false, hidden: false, error: message.error ?? 'Unknown error', durationMs: 0 }];
         status = 'in-progress';
         renderResults();
@@ -338,18 +359,23 @@ function mountCodeLab(host, props) {
       results = message.results ?? [];
       const allPass = results.length > 0 && results.every(result => result.pass);
       status = allPass ? 'passed' : 'in-progress';
-      finishRun();
+      finishRun(!isPython);
       renderResults();
       persist();
       if (allPass) props.onComplete();
     };
-    worker.postMessage({ type: 'run', code: currentCode, tests: data.tests });
+    if (isPython) {
+      const indexURL = new URL('/pyodide/', window.location.origin).href;
+      worker.postMessage({ type: 'run', indexURL, code: currentCode, tests: data.tests, tolerance: data.tolerance });
+    } else {
+      worker.postMessage({ type: 'run', code: currentCode, tests: data.tests });
+    }
   }
 
   renderResults();
   return {
     destroy() {
-      finishRun();
+      finishRun(true);
       view.destroy();
     },
   };

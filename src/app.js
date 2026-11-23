@@ -592,6 +592,8 @@ function openCommandPalette() {
   if (document.querySelector('dialog[open]')) return;
   const commands = [
     { label: 'Search library', glyph: 'search', run: searchLibrary },
+    { label: 'Import PDF book with AI', glyph: 'file-up', keywords: 'pdf book import ai skills', run: () => ai.importBook('pdf') },
+    { label: 'Import Markdown with AI', glyph: 'sparkles', keywords: 'markdown book import ai', run: () => ai.importBook('markdown') },
     { label: 'Open settings', glyph: 'settings', run: () => openSettings() },
     { label: 'Manage extensions', glyph: 'puzzle', run: () => openSettings('extensions') },
   ];

@@ -28,10 +28,25 @@ let logs = [];
 
 const DRIVER = `
 import json as _json
+import math as _math
 import traceback as _traceback
 import time as _time
 
+def _matches(_actual, _expected, _tol):
+    if _tol is None:
+        return bool(_actual == _expected)
+    if isinstance(_actual, bool) or isinstance(_expected, bool):
+        return _actual is _expected
+    if isinstance(_actual, (int, float)) and isinstance(_expected, (int, float)):
+        return _math.isclose(float(_actual), float(_expected), rel_tol=0.0, abs_tol=float(_tol))
+    if isinstance(_actual, (list, tuple)) and isinstance(_expected, (list, tuple)):
+        return len(_actual) == len(_expected) and all(_matches(a, b, _tol) for a, b in zip(_actual, _expected))
+    if isinstance(_actual, dict) and isinstance(_expected, dict):
+        return _actual.keys() == _expected.keys() and all(_matches(_actual[k], _expected[k], _tol) for k in _actual)
+    return bool(_actual == _expected)
+
 _payload = _json.loads(_payload_json)
+_tol = _payload.get('tolerance')
 _results = []
 _ns = {'__name__': '__sandbox__'}
 _fatal = None
@@ -52,7 +67,8 @@ if _fatal is None:
             continue
         try:
             _actual = _fn(*_test.get('args', []))
-            _ok = bool(_actual == _test['expected'])
+            _test_tol = _test.get('tolerance', _tol)
+            _ok = _matches(_actual, _test['expected'], _test_tol)
             _results.append({'name': _test['name'], 'pass': _ok,
                              'hidden': bool(_test.get('hidden')),
                              'actual': repr(_actual), 'expected': repr(_test['expected']),
@@ -67,7 +83,7 @@ _json.dumps({'results': _results, 'fatal': _fatal})
 `;
 
 self.onmessage = async event => {
-  const message = /** @type {{ type: string, indexURL: string, code: string, tests: unknown[] }} */ (event.data);
+  const message = /** @type {{ type: string, indexURL: string, code: string, tests: unknown[], tolerance?: number }} */ (event.data);
   if (message.type !== 'run') return;
   logs = [];
   try {
@@ -89,7 +105,11 @@ self.onmessage = async event => {
       bootMs = Date.now() - started;
     }
     const runStarted = Date.now();
-    pyodide.globals.set('_payload_json', JSON.stringify({ code: message.code, tests: message.tests }));
+    pyodide.globals.set('_payload_json', JSON.stringify({
+      code: message.code,
+      tests: message.tests,
+      tolerance: message.tolerance ?? null,
+    }));
     const raw = /** @type {string} */ (pyodide.runPython(DRIVER));
     const parsed = /** @type {{ results: unknown[], fatal: string | null }} */ (JSON.parse(raw));
     let heapBytes;

@@ -101,6 +101,8 @@ fn main() {
             ai::ai_review_solution,
             ai::ai_propose_patch,
             ai::ai_prepare_import,
+            ai::ai_prepare_chapter,
+            ai::ai_prepare_book_intro,
             ai::ai_import_book,
             capability::check_capability,
             workbench::native_system_info,

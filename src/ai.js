@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { skillArgs } from './extensions/skills';
+import { renderImportStudio } from './import-studio';
 import intro from './model/intro-model';
 import { patchDiff } from './patch-view';
 import { manageChatGptUsage, selectedAi } from './settings';
@@ -23,33 +24,6 @@ function field({ name, label, required, multiline, fitContent, value = '' }) {
     row.append(fit);
   } else row.append(control);
   return [row, control];
-}
-
-function importPreview(draft, markdown) {
-  function editable(parent, key, label, type, display) {
-    const section = el('section', 'draft-section');
-    function show() {
-      const edit = iconButton('Edit ' + label.toLowerCase(), 'pencil', () => {
-        const [row, input] = field({ name: key, label, multiline: type === 'markdown', value: parent[key] });
-        input.addEventListener('input', () => { parent[key] = type === 'text' ? input.value.trim() : input.value; });
-        const finish = button('Done editing ' + label.toLowerCase(), 'check', () => {
-          show();
-          section.querySelector('button').focus();
-        });
-        section.replaceChildren(row, finish);
-        input.focus();
-      });
-      section.replaceChildren(display(parent[key]), edit);
-    }
-    show();
-    return section;
-  }
-  const draftTitle = editable(draft, 'title', 'Book title', 'text', title => el('h3', 'draft-book-title', title || 'Untitled book'));
-  const introduction = editable(draft, 'introduction', 'Introduction', 'markdown',
-    source => source ? markdown(source, '') : el('p', 'muted', 'No introduction'));
-  return el('div', 'import-draft', draftTitle, introduction, draft.chapters.map(chapter => el('div', 'draft-chapter',
-    editable(chapter, 'title', 'Chapter title', 'text', title => el('h4', '', title || 'Untitled chapter')),
-    editable(chapter, 'markdown', 'Chapter Markdown', 'markdown', text => markdown(text, '')))));
 }
 
 function requestPanel(selection, options, close) {
@@ -203,18 +177,20 @@ export function createAiActions({ markdown, openSettings, openWorkspace, closeWo
         preview: text => markdown(text, path),
       });
     },
-    async importBook() {
-      if (!selectedAi()) return openSettings();
+    async importBook(initialMode = 'markdown') {
+      const selection = selectedAi();
+      if (!selection) return openSettings();
       const host = el('div', 'import-host');
       await openWorkspace(el('div', 'page ai-import-page', el('h1', 'page-title', 'Import a book'), host));
-      run(host, {
-        title: 'Prepare from Markdown', kind: 'ai-import', submitLabel: 'Prepare draft', resultTitle: 'Review draft',
-        fields: [{ name: 'title', label: 'Book title', required: true }, prompt('markdown', 'Source Markdown')],
-        request: (selection, source) => invoke('ai_prepare_import', { ...selection, ...skillArgs(), ...source }),
-        preview: draft => importPreview(draft, markdown),
-        acceptLabel: 'Import book',
-        accept: async draft => openImportedBook(await invoke('ai_import_book', { draft })),
-      }, closeWorkspace);
+      const studio = renderImportStudio({
+        selection,
+        markdown,
+        openImportedBook,
+        close: closeWorkspace,
+        initialMode: typeof initialMode === 'string' ? initialMode : 'markdown',
+      });
+      host.replaceChildren(studio);
+      studio.querySelector('input:not([type=file]), textarea, button')?.focus();
     },
   };
 }

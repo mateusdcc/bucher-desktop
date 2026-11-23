@@ -14,13 +14,13 @@ Progress, flashcard scheduling, notes, and solution attempts stay in the same Ma
 
 Choose **Write a solution**, **New attempt**, or **Edit** to write directly in the reader. The block you are editing shows its Markdown source, while surrounding blocks render as you write. **Insert Typst** adds a fenced equation. Supported Typst equations render in the reader and other Typst code stays editable as source.
 
-Under **Settings → AI**, choose a local Ollama model or connect ChatGPT in your browser and choose a ChatGPT model. Select **ChatGPT** as the AI provider to use your eligible ChatGPT plan or available credits for explanations, solutions, reviews, patches, and Markdown imports. Bücher sends the relevant text for each ChatGPT request to OpenAI. **Manage usage** opens the usage and app limits page. See the [AI command guide](docs/local-ai.md).
+Under **Settings → AI**, choose a local Ollama model or connect ChatGPT in your browser and choose a ChatGPT model. Select **ChatGPT** as the AI provider to use your eligible ChatGPT plan or available credits for explanations, solutions, reviews, patches, and Markdown or entire **PDF book** imports. Bücher sends the relevant text for each ChatGPT request to OpenAI. **Manage usage** opens the usage and app limits page. See the [AI command guide](docs/local-ai.md).
 
 ## Interactive extensions
 
-Books can embed interactive blocks: Mermaid diagrams, live function plots, step-by-step algorithm players, coding exercises with hidden unit tests, Parsons ordering puzzles, and SQL practice. The built-in book **The Interactive Extension Showcase** tours all six; it is seeded into your library once on first launch after updating.
+Books can embed interactive blocks: Mermaid diagrams, live function plots, step-by-step algorithm players, JavaScript & Python coding exercises with hidden unit tests, Parsons ordering puzzles, SQL/DuckDB practice, Desmos curve studios, interactive concept graphs, 3D spatial scenes, and native shell/git labs.
 
-Open **Settings → Extensions** to toggle extensions and inspect the AI authoring skill each one exposes. Enabled skills are injected into *Import with AI* and *Propose a patch*, so generated books can use the blocks too. Exercise blocks mark themselves solved when you pass them, and all block state persists in the book's `_progress.md`. See the [extension guide](docs/extensions.md) and [architecture notes](EXTENSIONS_ARCHITECTURE.md).
+Open **Settings → Extensions** to toggle extensions and inspect the AI authoring skill each one exposes, or choose exactly which extension skills to expose per book inside **Import with AI** (for both Markdown and full PDF books). Exercise blocks mark themselves solved when you pass them, and all block state persists in the book's `_progress.md`. See the [extension guide](docs/extensions.md) and [architecture notes](EXTENSIONS_ARCHITECTURE.md).
 
 ## Develop
 

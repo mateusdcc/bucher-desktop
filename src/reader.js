@@ -5,6 +5,7 @@ import language from './model/language';
 import { headingId } from './markdown';
 import { inlineSolutionEditor } from './solution-editor';
 import { button, el, icon, iconButton, notice } from './ui';
+import { Button, IconButton, ProgressBar, Select, Tabs } from './components/ui/index.ts';
 
 const { countsFor, statusFor } = progressModel;
 const { appendSolutionTab, materializeSolution, primaryKind, primarySolution, removeSolutionTab, resolveEmbed, solutionTabs } = solutions;
@@ -30,13 +31,7 @@ export function statusIndicator(read, total, title) {
 }
 
 export function readingProgress(counts) {
-  const line = el('div', 'progress-track', el('span'));
-  const progress = counts.chapters ? counts.read / counts.chapters : 0;
-  line.firstChild.style.width = `${progress * 100}%`;
-  line.setAttribute('role', 'progressbar');
-  line.setAttribute('aria-label', 'Chapters read');
-  line.setAttribute('aria-valuenow', String(Math.round(progress * 100)));
-  return line;
+  return ProgressBar({ value: counts.read, max: counts.chapters, label: 'Chapters read' }).root;
 }
 
 function content(source, title) {
@@ -66,9 +61,11 @@ export function showOverview(host, ctx) {
   host.append(el('h1', 'page-title', book.title));
   if (book.index.frontmatter.description) host.append(el('p', 'description', String(book.index.frontmatter.description)));
   host.append(el('div', 'page-actions',
-    next ? button(counts.read && counts.read < counts.chapters ? 'Continue reading' : 'Start reading', 'arrow-right',
-      () => openFile(next.path), 'accent-button') : button('Add chapter', 'plus', () => ctx.addChapter(book)),
-    counts.exercises ? button('Exercises', 'clipboard-list', () => openMode('exercises')) : null));
+    next ? Button({
+      label: counts.read && counts.read < counts.chapters ? 'Continue reading' : 'Start reading',
+      leftIcon: 'arrow-right', variant: 'primary', onClick: () => openFile(next.path),
+    }) : Button({ label: 'Add chapter', leftIcon: 'plus', variant: 'secondary', onClick: () => ctx.addChapter(book) }),
+    counts.exercises ? Button({ label: 'Exercises', leftIcon: 'clipboard-list', onClick: () => openMode('exercises') }) : null));
   if (counts.chapters) {
     host.append(el('div', 'book-progress',
       el('div', 'book-progress-label',
@@ -83,7 +80,7 @@ export function showOverview(host, ctx) {
       for (const concept of concepts) {
         const chapter = model.byPath.get(concept.file.path);
         const read = statusFor(model, records, chapter);
-        const row = button(concept.name, null, () => openFile(chapter.path), 'contents-row');
+        const row = Button({ label: concept.name, className: 'contents-row', onClick: () => openFile(chapter.path) });
         row.style.setProperty('--depth', depth);
         row.prepend(icon(concept.icon || 'file-text', true));
         row.append(el('span', 'contents-trailing', read ? statusIndicator(1, 1, 'Read') : icon('arrow-up-right')));
@@ -101,7 +98,10 @@ function prerequisites(targets, ctx) {
   if (!links.length) return null;
   const section = el('details', 'prerequisites', el('summary', '', 'Prerequisites'));
   section.append(el('div', 'prerequisite-links', links.map(target =>
-    button(target.title ?? target.name, 'arrow-up-right', event => ctx.openReference(target.path, target.id ?? '', event.currentTarget), 'quiet-link'))));
+    Button({
+      label: target.title ?? target.name, leftIcon: 'arrow-up-right', size: 'sm', className: 'quiet-link',
+      onClick: event => ctx.openReference(target.path, target.id ?? '', event.currentTarget),
+    }))));
   if (targets.includes(null)) section.append(el('span', 'muted', 'Some prerequisites could not be found.'));
   return section;
 }
@@ -113,15 +113,15 @@ function callout(unit, chapter, ctx) {
   block.id = unit.anchor ? '^' + unit.anchor : unit.node?.id || headingId(title);
   const row = el('div', 'callout-kind', icon(calloutIcons[kind] || 'quote'), labelFor(kind));
   if (!ctx.referenceOnly && languageBlocks.has(kind) && bookLanguage(ctx.library.app, ctx.book).speechLang) {
-    row.append(iconButton('Pronounce', 'volume-2', () => speakText(calloutBody(unit) || title, bookLanguage(ctx.library.app, ctx.book).speechLang)));
+    row.append(IconButton({ icon: 'volume-2', label: 'Pronounce', size: 'xs', onClick: () => speakText(calloutBody(unit) || title, bookLanguage(ctx.library.app, ctx.book).speechLang) }));
   }
   block.append(row, el('h2', 'callout-title', title));
   const body = unit.callout ? calloutBody(unit) : '';
   if (body.trim()) {
     if (!ctx.referenceOnly) {
       const explanation = el('div', 'explanation-anchor');
-      row.append(iconButton('Explain ' + title + ' with AI', 'message-circle-question-mark',
-        () => ctx.ai.explain(explanation, title + '\n\n' + body, chapter.path, title)));
+      row.append(IconButton({ icon: 'message-circle-question-mark', label: 'Explain ' + title + ' with AI', size: 'xs',
+        onClick: () => ctx.ai.explain(explanation, title + '\n\n' + body, chapter.path, title) }));
       block.prepend(explanation);
     }
     block.append(ctx.markdown(body, chapter.path, {
@@ -161,7 +161,7 @@ function solutionEditor(panel, state, chapter, exercise, ctx) {
       state.tab = tabs.length;
     },
   });
-  const newAttempt = button('New attempt', 'plus', startAttempt);
+  const newAttempt = Button({ label: 'New attempt', leftIcon: 'plus', size: 'sm', onClick: startAttempt });
   function editAttempt(selected) {
     const file = selected.path ? library.resolve(selected.path, chapter.path) : null;
     if (selected.path && !file) throw new Error('The solution note is missing.');
@@ -225,57 +225,58 @@ function solutionEditor(panel, state, chapter, exercise, ctx) {
       return;
     }
     if (tabs.length > 1) {
-      const tabBar = el('div', 'solution-tabs');
-      for (const [index, tab] of tabs.entries()) {
-        const control = button(tab.title, '', () => {
-          state.tab = index;
+      const tabBar = Tabs({
+        tabs: tabs.map((tab, index) => ({ value: String(index), label: tab.title })),
+        value: String(state.tab),
+        ariaLabel: 'Solution attempts',
+        onChange: value => {
+          state.tab = Number(value);
           draw();
-        }, index === state.tab ? 'selected' : '');
-        control.setAttribute('aria-pressed', String(index === state.tab));
-        tabBar.append(control);
-      }
-      const comparison = button(state.compare ? 'Close comparison' : 'Compare', 'columns-2', () => {
-        state.compare = !state.compare;
-        draw();
+        },
       });
-      tabBar.append(comparison);
-      body.append(tabBar);
+      const comparison = Button({
+        label: state.compare ? 'Close comparison' : 'Compare', leftIcon: 'columns-2', size: 'sm',
+        onClick: () => {
+          state.compare = !state.compare;
+          draw();
+        },
+      });
+      body.append(el('div', 'solution-tabs', tabBar.root, comparison));
     }
     const selected = tabs[state.tab];
     const controls = el('div', 'solution-actions', exercise.solution ? [
-      newAttempt, button('Generate solution with AI', 'sparkles', generate),
+      newAttempt, Button({ label: 'Generate solution with AI', leftIcon: 'sparkles', size: 'sm', onClick: generate }),
     ] : []);
     if (selected) {
-      controls.append(button('Edit', 'pencil', () => editAttempt(selected)));
+      controls.append(Button({ label: 'Edit', leftIcon: 'pencil', size: 'sm', onClick: () => editAttempt(selected) }));
       const note = selected.path ? library.resolve(selected.path, chapter.path) : null;
       const attempt = note ? stripFrontmatter(note.source) : selected.body;
-      if (attempt.trim()) controls.append(button('Review attempt with AI', 'clipboard-check', () => {
+      if (attempt.trim()) controls.append(Button({ label: 'Review attempt with AI', leftIcon: 'clipboard-check', size: 'sm', onClick: () => {
         const rubric = book.index.frontmatter.grading;
         return ai.review(question, attempt, rubric ? JSON.stringify(rubric) : null,
           note?.path ?? chapter.path, scope + ' · ' + selected.title);
-      }));
+      } }));
     }
     if (tabs.length > 1 && selected) {
-      controls.append(iconButton('Remove attempt', 'x', async () => {
+      controls.append(IconButton({ icon: 'x', label: 'Remove attempt', size: 'sm', onClick: async () => {
         if (!confirm('Remove this attempt from the exercise? Its Markdown file will be kept.')) return;
         await removeSolutionTab(plugin, chapter.file, book, unit, selected.path, 'mathjax');
         state.tab = Math.max(0, state.tab - 1);
         await changed();
-      }));
+      } }));
     }
     if (selected) {
       if (state.compare && tabs.length > 1) {
         const others = tabs.map((tab, index) => ({ tab, index })).filter(({ index }) => index !== state.tab);
-        const picker = el('select', 'compare-select');
-        picker.setAttribute('aria-label', 'Compare with');
-        for (const { tab, index } of others) {
-          const option = el('option', '', tab.title);
-          option.value = String(index);
-          picker.append(option);
-        }
-        picker.value = others.some(({ index }) => index === state.other) ? String(state.other) : String(others[0].index);
-        picker.addEventListener('change', () => { state.other = Number(picker.value); draw(); });
-        body.append(picker, el('div', 'proof-columns', proof(selected, true), proof(tabs[Number(picker.value)], true)));
+        const picker = Select({
+          ariaLabel: 'Compare with',
+          size: 'sm',
+          className: 'compare-select',
+          options: others.map(({ tab, index }) => ({ value: String(index), label: tab.title })),
+          value: others.some(({ index }) => index === state.other) ? String(state.other) : String(others[0].index),
+          onChange: value => { state.other = Number(value); draw(); },
+        });
+        body.append(picker.root, el('div', 'proof-columns', proof(selected, true), proof(tabs[Number(picker.select.value)], true)));
       } else {
         body.append(proof(selected));
       }
@@ -308,7 +309,7 @@ function exerciseTools(chapter, exercise, ctx) {
   if (required) panel.append(required);
   const controls = el('div', 'exercise-actions');
   const proof = el('div', 'solution-panel');
-  const reveal = button('', null, () => {
+  const reveal = Button({ size: 'sm', onClick: () => {
       if (!exercise.solution) {
         state.open = true;
         const { startAttempt } = redraw();
@@ -318,17 +319,20 @@ function exerciseTools(chapter, exercise, ctx) {
       }
       state.open = !state.open;
       redraw();
-    });
-  controls.append(reveal, button(solved ? 'Solved' : 'Mark solved', solved ? 'check' : 'circle-check',
-    async () => { await progress.set(model, target, !solved); await changed(); }, solved ? 'accent' : ''));
-  if (!exercise.solution) controls.append(button('Generate solution with AI', 'sparkles', () => {
+    } });
+  controls.append(reveal, Button({
+    label: solved ? 'Solved' : 'Mark solved', leftIcon: solved ? 'check' : 'circle-check',
+    variant: solved ? 'success' : 'ghost', size: 'sm',
+    onClick: async () => { await progress.set(model, target, !solved); await changed(); },
+  }));
+  if (!exercise.solution) controls.append(Button({ label: 'Generate solution with AI', leftIcon: 'sparkles', size: 'sm', onClick: () => {
     if (state.draft) {
       notice('Save or discard the current draft first.');
       return;
     }
     state.open = true;
     redraw().generate();
-  }));
+  } }));
   function redraw() {
     reveal.replaceChildren(icon(!exercise.solution ? 'pencil' : state.open ? 'eye-off' : 'eye'),
       !exercise.solution ? 'Write a solution' : state.open ? 'Hide solution' : 'Reveal solution');
@@ -373,15 +377,18 @@ export function showChapter(host, chapter, ctx) {
   host.append(chapterBody);
   if (ctx.referenceOnly) return;
   const footer = el('div', 'chapter-footer',
-    button(previous?.name || book.title, 'arrow-left', () => openFile(previous?.path ?? book.index.path), 'previous-chapter'),
-    button(read ? 'Read' : 'Mark as read', read ? 'check' : 'circle-check',
-      async () => { await progress.setRead(model, [chapter.path], !read); await changed(); }, read ? 'accent read-chapter' : 'read-chapter'),
-    button(next?.name || 'Finish book', 'arrow-right', async () => {
+    Button({ label: previous?.name || book.title, leftIcon: 'arrow-left', size: 'sm', className: 'previous-chapter', onClick: () => openFile(previous?.path ?? book.index.path) }),
+    Button({
+      label: read ? 'Read' : 'Mark as read', leftIcon: read ? 'check' : 'circle-check',
+      variant: read ? 'success' : 'ghost', size: 'sm', className: 'read-chapter',
+      onClick: async () => { await progress.setRead(model, [chapter.path], !read); await changed(); },
+    }),
+    Button({ label: next?.name || 'Finish book', rightIcon: 'arrow-right', variant: 'primary', size: 'sm', className: 'next-chapter', onClick: async () => {
       if (!read) await progress.setRead(model, [chapter.path], true);
       await changed(false);
       await openFile(next?.path ?? book.index.path);
       if (!next) notice('Last chapter marked as read.');
-    }, 'accent-button next-chapter'));
+    } }));
   host.append(footer);
 }
 
@@ -395,7 +402,7 @@ export function showExercises(host, ctx, scope) {
   for (const chapter of chapters) {
     for (const exercise of chapter.nodes.filter(node => node.type === 'exercise')) {
       const block = el('section', 'sheet-exercise',
-        button(chapter.name, 'arrow-up-right', () => openFile(chapter.path, exercise.unit.anchor ? '^' + exercise.unit.anchor : exercise.unit.node?.id ?? headingId(exercise.title)), 'quiet-link'),
+        Button({ label: chapter.name, leftIcon: 'arrow-up-right', size: 'sm', className: 'quiet-link', onClick: () => openFile(chapter.path, exercise.unit.anchor ? '^' + exercise.unit.anchor : exercise.unit.node?.id ?? headingId(exercise.title)) }),
         callout(exercise.unit.type !== 'solution' ? exercise.unit : { title: exercise.title }, chapter, ctx));
       if (exercise.prompt?.length) block.append(markdown(exercise.prompt.join('\n\n'), chapter.path, {
         chapter, unit: exercise.unit, unitIndex: chapter.units.indexOf(exercise.unit), referenceOnly: ctx.referenceOnly,
@@ -415,15 +422,17 @@ export function showOutline(host, chapter, ctx) {
     for (const unit of entries) {
       const label = unit.title || labelFor(unit.callout);
       const fragment = unit.anchor ? '^' + unit.anchor : unit.node?.id || headingId(label);
-      host.append(button(label, '', () => ctx.jump(fragment), 'outline-link'));
+      host.append(Button({ label, className: 'outline-link', onClick: () => ctx.jump(fragment) }));
     }
   }
   const dependencies = chapter.dependencies.filter(Boolean);
   if (dependencies.length) {
     host.append(el('h2', 'eyebrow', 'Prerequisites'));
     for (const target of dependencies) {
-      host.append(button(target.title ?? target.name, 'arrow-up-right',
-        event => ctx.openReference(target.path, target.id ?? '', event.currentTarget), 'outline-link'));
+      host.append(Button({
+        label: target.title ?? target.name, leftIcon: 'arrow-up-right', className: 'outline-link',
+        onClick: event => ctx.openReference(target.path, target.id ?? '', event.currentTarget),
+      }));
     }
   }
 }
